@@ -2,11 +2,10 @@ import { readFile, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { imageUploadsDir } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const UPLOAD_DIR = join(process.cwd(), "prisma", "uploads", "images");
 
 const TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -75,7 +74,7 @@ export async function GET(_req: Request, { params }: Params) {
     return new Response("forbidden", { status: 403 });
   }
 
-  const path = join(UPLOAD_DIR, name);
+  const path = join(imageUploadsDir(), name);
   try {
     await stat(path);
   } catch {

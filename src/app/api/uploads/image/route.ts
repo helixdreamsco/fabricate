@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { auth } from "@/auth";
+import { imageUploadsDir } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,8 +30,6 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 const MAX_BYTES = 12 * 1024 * 1024;
 
-const UPLOAD_DIR = join(process.cwd(), "prisma", "uploads", "images");
-
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
@@ -56,9 +55,10 @@ export async function POST(req: Request) {
 
   const ext = EXT_BY_MIME[mime] ?? (extname(file.name).toLowerCase() || ".jpg");
   const safeName = `${randomBytes(12).toString("hex")}${ext}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
+  const dir = imageUploadsDir();
+  await mkdir(dir, { recursive: true });
   const buf = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(UPLOAD_DIR, safeName), buf);
+  await writeFile(join(dir, safeName), buf);
 
   return NextResponse.json({
     imageUrl: `/api/uploads/image/${safeName}`,

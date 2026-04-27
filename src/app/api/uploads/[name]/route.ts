@@ -1,13 +1,11 @@
-import { NextResponse } from "next/server";
 import { readFile, stat } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { uploadsDir } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const UPLOAD_DIR = join(process.cwd(), "prisma", "uploads");
 
 const TYPES: Record<string, string> = {
   ".stl": "model/stl",
@@ -59,7 +57,7 @@ export async function GET(_req: Request, { params }: Params) {
     return new Response("forbidden", { status: 403 });
   }
 
-  const path = join(UPLOAD_DIR, name);
+  const path = join(uploadsDir(), name);
   try {
     await stat(path);
   } catch {

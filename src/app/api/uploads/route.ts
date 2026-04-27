@@ -3,14 +3,13 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import { randomBytes } from "node:crypto";
 import { auth } from "@/auth";
+import { uploadsDir } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ALLOWED = new Set([".stl", ".3mf", ".obj", ".step", ".stp"]);
 const MAX_BYTES = 80 * 1024 * 1024; // 80 MB
-
-const UPLOAD_DIR = join(process.cwd(), "prisma", "uploads");
 
 /**
  * POST a single file (multipart/form-data, field "file"). Returns
@@ -38,9 +37,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `unsupported extension '${ext}'` }, { status: 415 });
 
   const safeName = `${randomBytes(12).toString("hex")}${ext}`;
-  await mkdir(UPLOAD_DIR, { recursive: true });
+  const dir = uploadsDir();
+  await mkdir(dir, { recursive: true });
   const buf = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(UPLOAD_DIR, safeName), buf);
+  await writeFile(join(dir, safeName), buf);
 
   return NextResponse.json({
     fileUrl: `/api/uploads/${safeName}`,
