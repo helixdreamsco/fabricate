@@ -1,0 +1,414 @@
+// Prisma schema for Fabricate.
+//
+// Stage 1: SQLite (file-based, zero-ops, great for demo + local dev).
+// Stage 2 migration path: swap provider to `postgresql` and point
+// DATABASE_URL at Cloud SQL inside genome-494016. No model changes required.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────────────────────────────
+// NextAuth (PrismaAdapter) standard tables
+// ──────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  ownedCommunities Community[]        @relation("CommunityOwner")
+  memberships      CommunityMember[]
+  messages         CommunityMessage[]
+
+  makerProfile    MakerProfile?
+  createdJobs     Job[]         @relation("JobCreator")
+  jobMessages     JobMessage[]  @relation("JobMessageAuthor")
+  paymentsAsPayer Payment[]     @relation("PaymentPayer")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Fabricate — Communities
+// ──────────────────────────────────────────────────────────────
+
+model Community {
+  id          String  @id @default(cuid())
+  // Short, URL-friendly human identifier. Used for /c/[slug].
+  slug        String  @unique
+  // Random secret code used for /j/[inviteCode] join links. Can be rotated.
+  inviteCode  String  @unique
+  name        String
+  description String?
+  // 0-359, used to render a generated avatar without uploading an image.
+  iconHue     Int     @default(210)
+
+  ownerId String
+  owner   User   @relation("CommunityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Policy
+  discountPct      Int     @default(0) // 0..100
+  freeMode         Boolean @default(false) // overrides discount → £0
+  priorityQueue    Boolean @default(false) // community jobs skip ahead
+  memberOnlyMakers Boolean @default(false) // if true, maker affiliations are visible ONLY to members
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  CommunityMember[]
+  messages CommunityMessage[]
+
+  @@index([ownerId])
+}
+
+model CommunityMember {
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // "owner" | "admin" | "member"
+  role        String    @default("member")
+  joinedAt    DateTime  @default(now())
+
+  @@unique([communityId, userId])
+  @@index([userId])
+}
+
+model CommunityMessage {
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String
+  createdAt   DateTime  @default(now())
+
+  @@index([communityId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Fabricate — Jobs marketplace
+// ──────────────────────────────────────────────────────────────
+
+// Real maker accounts (separate from the static catalogue at lib/catalog.ts).
+// Catalogue entries remain for marketing/discovery; bidding + payouts require
+// a registered MakerProfile attached to a signed-in User.
+model MakerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  displayName String
+  bio         String?
+  postcode    String?
+  lat         Float?
+  lng         Float?
+
+  hasAMS       Boolean @default(false)
+  printerModel String?
+
+  // JSON-encoded array of MaterialKey strings the maker stocks
+  // (e.g. `["PLA","PETG"]`). Empty/null = unspecified.
+  materials    String?
+
+  // Maker waives the creator's "completion photo" fee. Surfaces as a badge
+  // in /market and on the maker's bids. When the creator accepts a bid from
+  // such a maker on a photo-required job, the fee is not charged.
+  freeCompletionPhoto Boolean @default(false)
+
+  // Stripe Connect (Express). null until onboarded.
+  stripeAccountId String?
+  stripeOnboarded Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bids            JobBid[]
+  assignedJobs    Job[]    @relation("JobAssignedMaker")
+  prioritizedJobs Job[]    @relation("JobPrioritizedMaker")
+  payouts         Payout[]
+  bookmarks       MakerJobBookmark[]
+}
+
+// Maker's per-job action: SAVED (bookmarked for later) or HIDDEN
+// (declined / not interested). Hidden jobs are filtered from the maker's
+// market view; saved jobs surface in a dedicated tab.
+model MakerJobBookmark {
+  id      String @id @default(cuid())
+  makerId String
+  maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+  jobId   String
+  job     Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  // SAVED | HIDDEN
+  status  String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([makerId, jobId])
+  @@index([makerId, status])
+}
+
+model Job {
+  id String @id @default(cuid())
+
+  creatorId String
+  creator   User   @relation("JobCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  // Configuration snapshot — denormalised so historical jobs don't change as
+  // the catalogue evolves.
+  fileName         String
+  fileUrl          String? // path under /uploads/<id>.<ext> for now (swap to S3 before scale)
+  fileSizeBytes    Int     @default(0)
+  material         String // MaterialKey from catalog
+  // JSON-encoded array of hex strings, one per part for multi-material
+  partColors       String  @default("[]")
+  quality          String  @default("STANDARD")
+  infillPct        Int     @default(20)
+  quantity         Int     @default(1)
+  isMultiMaterial  Boolean @default(false)
+  partsCount       Int     @default(1)
+  estimatedGrams   Float?
+  estimatedMinutes Int?
+  notes            String?
+
+  // Pricing in pence to avoid float drift
+  quotedPricePence Int
+  platformFeePence Int @default(0)
+
+  // Optional creator add-on: maker must upload a photo of the finished print
+  // before the job can be marked ready for pickup. Fee is captured on top of
+  // the bid amount at acceptance and forwarded to the maker as a payout
+  // bonus (no platform cut on this).
+  requireCompletionPhoto    Boolean   @default(false)
+  completionPhotoFeePence   Int       @default(0)
+  completionPhotoUrl        String?
+  completionPhotoUploadedAt DateTime?
+
+  // Pickup happens at the maker's location by default (see MakerProfile.postcode).
+  // pickupPostcode is now an optional creator override — only set if they want
+  // to suggest a different meet-up point. The QR handshake is location-agnostic
+  // so creator and maker can agree elsewhere via chat.
+  pickupPostcode String?
+  pickupLat      Float?
+  pickupLng      Float?
+  pickupNotes    String?
+
+  // Optional preferred maker (visible-everywhere, just badge + sort boost)
+  prioritizedMakerId String?
+  prioritizedMaker   MakerProfile? @relation("JobPrioritizedMaker", fields: [prioritizedMakerId], references: [id])
+
+  // Selected after creator accepts a bid
+  assignedMakerId String?
+  assignedMaker   MakerProfile? @relation("JobAssignedMaker", fields: [assignedMakerId], references: [id])
+
+  // Status string — one of: OPEN | ASSIGNED | IN_PROGRESS | READY_FOR_PICKUP
+  // | PICKED_UP | COMPLETED | CANCELLED | DISPUTED
+  status String @default("OPEN")
+
+  // Optional community context (carry forward existing community discount/free
+  // mode at quote time). Loose ref — no FK so a deleted community doesn't
+  // cascade-delete jobs.
+  communityId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bids         JobBid[]
+  events       JobEvent[]
+  messages     JobMessage[]
+  pickupTokens PickupToken[]
+  payment      Payment?
+  bookmarks    MakerJobBookmark[]
+
+  @@index([status, createdAt])
+  @@index([creatorId])
+  @@index([assignedMakerId])
+  @@index([prioritizedMakerId])
+}
+
+model JobBid {
+  id      String       @id @default(cuid())
+  jobId   String
+  job     Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  makerId String
+  maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+
+  priceOfferPence Int
+  etaHours        Int
+  message         String?
+
+  // PENDING | ACCEPTED | DECLINED | WITHDRAWN
+  status String @default("PENDING")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([jobId, makerId])
+  @@index([jobId, status])
+  @@index([makerId])
+}
+
+model JobEvent {
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // "system" | "creator" | "maker"
+  actor   String
+  // userId for non-system events
+  actorId String?
+
+  // status_change | log | bid_placed | bid_accepted | pickup_minted
+  // pickup_verified | payment_authorized | payment_captured
+  // payout_released | payment_refunded | issue_reported
+  kind String
+
+  body String
+  // optional structured JSON payload
+  data String?
+
+  createdAt DateTime @default(now())
+
+  @@index([jobId, createdAt])
+}
+
+model JobMessage {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("JobMessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  // body is allowed to be empty when an image is attached.
+  body      String
+  // Optional image attachment. Path under /api/uploads/image/<name>; access
+  // is gated by membership in the job (see uploads/image/[name]/route.ts).
+  imageUrl  String?
+  imageMime String?
+  createdAt DateTime @default(now())
+
+  @@index([jobId, createdAt])
+}
+
+model PickupToken {
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // 6-digit numeric code, also encoded into the QR payload as
+  // fabricate://pickup/<code> so a generic QR scanner shows a recognisable URL.
+  code String @unique
+
+  // MAKER_TO_CREATOR (creator shows code; maker scans/types — default)
+  // CREATOR_TO_MAKER (reverse fallback when maker has no camera)
+  direction String @default("MAKER_TO_CREATOR")
+
+  consumedAt DateTime?
+  consumedBy String? // userId
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+}
+
+model Payment {
+  id      String @id @default(cuid())
+  jobId   String @unique
+  job     Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  payerId String
+  payer   User   @relation("PaymentPayer", fields: [payerId], references: [id], onDelete: Cascade)
+
+  amountPence      Int
+  platformFeePence Int @default(0)
+
+  // Stripe references — null in sim mode (we generate sim_pi_… ids).
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+
+  // PENDING | AUTHORIZED | CAPTURED | REFUNDED | FAILED
+  status String @default("PENDING")
+
+  // "live" (real Stripe) | "sim" (in-process simulator)
+  mode String @default("sim")
+
+  authorizedAt  DateTime?
+  capturedAt    DateTime?
+  refundedAt    DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payout Payout?
+}
+
+model Payout {
+  id        String       @id @default(cuid())
+  paymentId String       @unique
+  payment   Payment      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  makerId   String
+  maker     MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+
+  amountPence Int
+
+  stripeTransferId String? @unique
+
+  // PENDING | PAID | FAILED
+  status String @default("PENDING")
+  mode   String @default("sim")
+
+  paidAt        DateTime?
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([makerId, status])
+}

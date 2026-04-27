@@ -1,0 +1,64 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { summarize, type SharedCommunity } from "@/lib/maker-profile";
+
+/**
+ * GET /api/makers
+ *
+ * List of registered MakerProfiles, used by the creator's "prioritize a
+ * maker" picker on /checkout. Each entry is annotated with the
+ * communities (if any) the requesting user shares with the maker — the
+ * client uses that to bubble community-mates to the top.
+ *
+ * Excludes the caller's own profile so creators can't accidentally
+ * prioritize themselves.
+ */
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.id)
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  // Communities the caller belongs to. Empty list = no community boost.
+  const myMemberships = await prisma.communityMember.findMany({
+    where: { userId: session.user.id },
+    select: { communityId: true },
+  });
+  const myCommunityIds = myMemberships.map((m) => m.communityId);
+
+  // Pull all makers (excluding self) and the memberships of each maker's
+  // user for any of my communities. Single round-trip via Prisma's nested
+  // select.
+  const profiles = await prisma.makerProfile.findMany({
+    where: { NOT: { userId: session.user.id } },
+    orderBy: { createdAt: "asc" },
+    include: {
+      user: {
+        select: {
+          memberships: {
+            where: myCommunityIds.length > 0
+              ? { communityId: { in: myCommunityIds } }
+              : { communityId: { in: [] } }, // produce zero rows cheaply
+            select: {
+              community: {
+                select: { id: true, slug: true, name: true, iconHue: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return NextResponse.json({
+    makers: profiles.map((p) => {
+      const shared: SharedCommunity[] = (p.user?.memberships ?? []).map((m) => ({
+        id: m.community.id,
+        slug: m.community.slug,
+        name: m.community.name,
+        iconHue: m.community.iconHue,
+      }));
+      return summarize(p, shared);
+    }),
+  });
+}

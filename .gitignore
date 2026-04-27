@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local dev data — never commit
+prisma/dev.db
+prisma/dev.db-journal
+prisma/uploads/
+
+# python venv for the FastAPI service
+api/.venv/
+api/__pycache__/
+**/__pycache__/
+
+# OS
+Thumbs.db

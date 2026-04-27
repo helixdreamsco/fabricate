@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+# `db push --accept-data-loss` is acceptable for staging because we don't
+# yet have migrations and the DB is rebuilt from the volume. Switch to
+# `prisma migrate deploy` once we generate migrations for production.
+startCommand = "npm run deploy:start"
+healthcheckPath = "/api/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "always"
