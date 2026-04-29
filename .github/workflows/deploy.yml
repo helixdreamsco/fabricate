@@ -72,12 +72,18 @@ jobs:
           TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPOSITORY }}/fabricate-web:${{ github.sha }}"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      - name: Build with Cloud Build
-        run: |
-          gcloud builds submit \
-            --tag ${{ steps.image.outputs.tag }} \
-            --timeout=20m \
-            --machine-type=e2-highcpu-8
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.image.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       # ── Migrate database via Cloud SQL Auth Proxy ────────────────────
       - name: Set up Node
