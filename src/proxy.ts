@@ -35,7 +35,10 @@ export default auth((req) => {
   }
 
   // ── Stage 2: auth gate (existing) ───────────────────────────────────
-  const isAuthed = !!req.auth;
+  // Tighten check: NextAuth can return a non-null but anonymous session
+  // object on some hosts (Cloud Run with no inbound cookie). Only treat
+  // a session with a real user id as authed.
+  const isAuthed = !!(req.auth as { user?: { id?: string } } | null)?.user?.id;
   const needsAuth =
     path.startsWith("/checkout") ||
     path.startsWith("/order") ||
@@ -106,6 +109,6 @@ export const config = {
     //   - /api/auth/* (NextAuth OAuth callbacks; can't gate)
     //   - /api/healthz (host liveness probe)
     //   - Next.js static assets and favicon
-    "/((?!access|api/access|api/auth|api/healthz|_next/static|_next/image|favicon.ico).*)",
+    "/((?!access|api/access|api/auth|api/healthz|api/readyz|_next/static|_next/image|favicon.ico).*)",
   ],
 };
