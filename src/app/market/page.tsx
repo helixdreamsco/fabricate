@@ -26,6 +26,7 @@ export default async function MarketPage() {
 
   const profile = await prisma.makerProfile.findUnique({
     where: { userId: session.user.id },
+    include: { printers: { orderBy: { priority: "asc" } } },
   });
 
   // Always pull open jobs — we use them for both views (insights aggregates
@@ -114,14 +115,29 @@ export default async function MarketPage() {
       }))}
       bookmarks={bookmarkByJob}
       myBids={bidByJob}
-      profile={{
-        id: profile.id,
-        displayName: profile.displayName,
-        printerModel: profile.printerModel,
-        hasAMS: profile.hasAMS,
-        materials: parseMaterials(profile.materials),
-        stripeOnboarded: profile.stripeOnboarded,
-      }}
+      profile={(() => {
+        // Fold the maker's full printer set into a single "best capability"
+        // view for the maker-market scoring: any-printer hasAMS counts as
+        // AMS-capable, the union of stocked materials counts as stockable,
+        // and the primary printer's model surfaces in the header.
+        const active = profile.printers.filter((p) => p.active);
+        const list = active.length > 0 ? active : profile.printers;
+        const sorted = list.slice().sort((a, b) => a.priority - b.priority);
+        const primary = sorted[0] ?? null;
+        const anyAms = list.some((p) => p.hasAMS);
+        const matSet = new Set<MaterialKey>();
+        for (const p of list) {
+          for (const m of parseMaterials(p.materials)) matSet.add(m);
+        }
+        return {
+          id: profile.id,
+          displayName: profile.displayName,
+          printerModel: primary?.printerModel ?? null,
+          hasAMS: anyAms,
+          materials: Array.from(matSet),
+          stripeOnboarded: profile.stripeOnboarded,
+        };
+      })()}
     />
   );
 }

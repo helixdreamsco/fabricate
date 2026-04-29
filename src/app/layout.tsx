@@ -4,6 +4,7 @@ import "./globals.css";
 import { TopNav } from "@/components/shell/TopNav";
 import { PreLaunchBanner } from "@/components/shell/PreLaunchBanner";
 import { OrderProvider } from "@/lib/order-store";
+import { SessionProviderClient } from "@/components/auth/SessionProviderClient";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -32,11 +33,13 @@ export default function RootLayout({
       className={`${inter.variable} ${spaceMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <OrderProvider>
-          <PreLaunchBanner />
-          <TopNav />
-          <main className="flex-1 flex flex-col">{children}</main>
-        </OrderProvider>
+        <SessionProviderClient>
+          <OrderProvider>
+            <PreLaunchBanner />
+            <TopNav />
+            <main className="flex-1 flex flex-col">{children}</main>
+          </OrderProvider>
+        </SessionProviderClient>
       </body>
     </html>
   );

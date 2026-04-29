@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Card } from "@/components/ui/Card";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { Input } from "@/components/ui/Input";
 import { formatGBP } from "@/lib/utils";
 
 export default function MakersPage() {
@@ -13,12 +12,40 @@ export default function MakersPage() {
   const [hoursPerWeek, setHoursPerWeek] = React.useState(40);
   const [submitted, setSubmitted] = React.useState(false);
   const [email, setEmail] = React.useState("");
+  const [pending, setPending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  // Back-of-envelope earnings: avg £2.40/h machine time, 70% margin share to
-  // maker = £1.68/h of print time; plus ~£1.20/h material margin pass-through
-  // after filament cost.
-  const weekly = hoursPerWeek * (1.68 + 1.2);
+  // Rough earnings model on the bid-based flow:
+  // - £2.40/h machine time, after 8% platform cut and the auto-estimate
+  //   margin multiplier the maker takes ~£1.68/h of print time
+  // - ~£1.20/h material margin pass-through after filament cost
+  // - assume 70% bid-win rate on jobs you bid on (the rest go to faster /
+  //   cheaper / better-reviewed makers)
+  const winRate = 0.7;
+  const weekly = hoursPerWeek * (1.68 + 1.2) * winRate;
   const monthly = weekly * 4.3;
+
+  const onAutoPrintSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, kind: "auto_print" }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `failed (${res.status})`);
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
     <div className="flex-1 bg-grid-none">
@@ -31,14 +58,26 @@ export default function MakersPage() {
           <span className="shimmer-text">Your idle printer,</span>
           <br />
           <span className="shimmer-text" style={{ animationDelay: "0.8s" }}>
-            earning overnight.
+            earning between projects.
           </span>
         </h1>
         <p className="mt-8 max-w-2xl text-lg md:text-xl font-light text-black/60 leading-relaxed">
-          Install the Fabricate Bridge Client on the PC beside your printer.
-          Jobs are auto-accepted, sliced server-side, and streamed over USB —
-          you clear the bed, we pay out weekly.
+          List your printer in five minutes. Browse open jobs nearby, bid the
+          price you want, print, hand off to the customer, and get paid.
+          Stripe Connect, GBP weekly payouts, no monthly fees.
         </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link href="/maker/profile">
+            <Button size="lg" withArrow>
+              Get started
+            </Button>
+          </Link>
+          <Link href="#estimator">
+            <Button size="lg" variant="secondary">
+              See what you&rsquo;d earn
+            </Button>
+          </Link>
+        </div>
       </section>
 
       {/* 3 steps */}
@@ -46,21 +85,21 @@ export default function MakersPage() {
         <div className="max-w-[1400px] mx-auto px-5 md:px-8 py-16 md:py-20 grid grid-cols-1 md:grid-cols-3 gap-4">
           <Step
             idx="01"
-            title="Plug in the Bridge Client"
-            body="A 28 MB background app for Windows, macOS, and Linux. Installs in 60 seconds, connects over plain USB. No open ports, no cloud dependency beyond our API."
-            detail="Python · runs in user session · zero config"
+            title="List your printer · verify in 48h"
+            body="Sign up, tell us your printer model, AMS status, materials in stock, and your postcode. Stripe Identity scans your passport or driving licence (5 min). Upload a photo of a recent calibration print so an admin can confirm your printer is dialled in. Approval typically lands the next working day."
+            detail="Stripe Identity · admin review · ICO-registered"
           />
           <Step
             idx="02"
-            title="Jobs arrive auto-accepted"
-            body="We slice server-side against your exact printer profile and send the G-code down the pipe. You see queued jobs, progress, and maker-side events. No chat threads, no bidding."
-            detail="Server-side slicing · safety-checked G-code"
+            title="Bid on real jobs"
+            body="Browse open jobs in your area. Each one shows the file, material, quantity, infill, and the creator's quoted price. Place a bid at the price you want — you can go below the listed price to win on price, but the platform fee floor protects our cut so you only erode your machine-time and material money. Creators pick from bids on price, ETA, reviews, and community membership."
+            detail="Open market · creator picks the bid · withdraw anytime"
           />
           <Step
             idx="03"
-            title="Clear the bed, get paid"
-            body="When the print finishes, tap 'Bed cleared' on your phone or the client. Funds release from Creator escrow, typically paid out weekly on Fridays."
-            detail="Stripe Connect · GBP weekly · no fees until £500/mo"
+            title="Print, hand off, get paid"
+            body="Once your bid is accepted, the job moves to your dashboard. Chat with the creator, print, post-process, and mint a pickup QR when ready. The creator scans on collection, payment captures, and your share lands in your Stripe Connect balance."
+            detail="In-person pickup · QR handshake · weekly payouts"
           />
         </div>
       </section>
@@ -80,6 +119,10 @@ export default function MakersPage() {
               <br />
               <span className="text-black/45">See what it&rsquo;d earn.</span>
             </h2>
+            <p className="mt-3 max-w-md text-sm font-light text-black/55 leading-relaxed">
+              Rough indicator only — actual earnings depend on the bids you
+              win. Assumes a 70% win rate on jobs you bid on.
+            </p>
           </div>
         </div>
 
@@ -139,39 +182,42 @@ export default function MakersPage() {
             </div>
           </Card>
 
-          {/* Apply */}
-          <Card className="p-6 md:p-8 flex flex-col gap-5 bg-[#0a0a0a] text-white !border-[#0a0a0a]">
-            <MonoLabel size="md" className="!text-white/60">
-              Apply in 60 seconds
+          {/* Auto-print trial signup */}
+          <Card className="p-6 md:p-8 flex flex-col gap-5 bg-[#7c3aed] text-white !border-[#7c3aed]">
+            <MonoLabel size="md" className="!text-white/65">
+              Coming soon · auto-print trial
             </MonoLabel>
             <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-[1.1]">
-              Seats are opening in waves.
-              <br />
-              <span className="text-white/55">Reserve yours.</span>
+              Skip bidding. Jobs route themselves.
             </h3>
+            <p className="text-[13px] font-light text-white/80 leading-relaxed">
+              We&rsquo;re building a Bridge Client — a small background app
+              that runs next to your printer. Creators pay; we slice
+              server-side against your printer profile and stream G-code
+              over USB. You clear the bed and get paid. No bidding, no
+              chat, no waiting.
+            </p>
+            <p className="text-[13px] font-light text-white/80 leading-relaxed">
+              Limited trial spots opening later this year. Drop your email
+              to be first in.
+            </p>
             {submitted ? (
-              <div className="rounded-xl border border-white/20 p-4 flex items-center gap-3">
+              <div className="rounded-xl border border-white/25 p-4 flex items-center gap-3">
                 <StatusDot tone="ready" pulse />
                 <div>
                   <div className="text-sm font-medium">
                     You&rsquo;re on the list.
                   </div>
-                  <div className="text-[12px] font-light text-white/60 mt-0.5">
-                    We&rsquo;ll email onboarding details for {printer} when a
-                    seat opens.
+                  <div className="text-[12px] font-light text-white/75 mt-0.5">
+                    We&rsquo;ll email auto-print onboarding details for{" "}
+                    {printer} when a slot opens.
                   </div>
                 </div>
               </div>
             ) : (
-              <form
-                className="flex flex-col gap-5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setSubmitted(true);
-                }}
-              >
+              <form className="flex flex-col gap-3" onSubmit={onAutoPrintSubmit}>
                 <label className="flex flex-col gap-2">
-                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/55">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-white/65">
                     Email
                   </span>
                   <input
@@ -180,23 +226,27 @@ export default function MakersPage() {
                     placeholder="you@studio.co"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="bg-transparent border-b border-white/25 pb-1.5 text-sm font-light outline-none placeholder:text-white/35 focus:border-white/70 transition-colors"
+                    className="bg-transparent border-b border-white/30 pb-1.5 text-sm font-light outline-none placeholder:text-white/40 focus:border-white/80 transition-colors"
                   />
                 </label>
+                {error ? (
+                  <div className="text-xs text-white/90 font-light">{error}</div>
+                ) : null}
                 <Button
                   type="submit"
                   size="lg"
                   withArrow
                   variant="secondary"
-                  className="w-full justify-between !bg-white !text-black !border-white"
+                  disabled={pending}
+                  className="w-full justify-between !bg-white !text-[#7c3aed] !border-white"
                 >
-                  Reserve a seat
+                  {pending ? "Adding…" : "Join the auto-print trial"}
                 </Button>
               </form>
             )}
-            <div className="text-[11px] font-light text-white/55 leading-relaxed">
-              No fees until you&rsquo;ve cleared £500 / month. Payouts issued
-              on a weekly schedule once escrow clears.
+            <div className="text-[11px] font-light text-white/65 leading-relaxed">
+              Auto-print is in active development. Until then, bid-based
+              earnings start the day you&rsquo;re verified.
             </div>
           </Card>
         </div>
@@ -241,20 +291,36 @@ const PRINTERS = [
 
 const FAQ = [
   {
+    q: "What does verification involve?",
+    a: "Stripe Identity (passport or driving licence + selfie liveness, ~5 min on a hosted page) plus a photo of a recent calibration print you've made. An admin reviews the print and either approves or asks for a better one. We never see your ID — Stripe holds it.",
+  },
+  {
+    q: "How does pricing work?",
+    a: "We auto-estimate a fair price for each job (material + machine time + a margin). Creators set their own price at or above that floor. As a maker you can bid below the listed price to win on price — but never below the platform fee, so our cut is preserved while you eat into your machine-time and material margin.",
+  },
+  {
+    q: "What if a print fails or there's a dispute?",
+    a: "Built-in dispute flow. The creator files an issue from the job page with photos; both sides chat and post evidence. An admin resolves it in either direction — full or partial refund (creator wins, your payout reduced) or marked complete (maker wins). Test-strip stencils with the order's unique code are available to prove your printer is working — a creator-paid add-on at checkout, or you can offer one preemptively.",
+  },
+  {
     q: "Do I need a dedicated PC?",
-    a: "No. The Bridge Client runs in the background on your normal machine. It uses ~80 MB of RAM and only touches the printer over USB when there's a job.",
+    a: "Not in the current bid-based flow — you handle each job manually from your dashboard. The auto-print trial (sign up above) will use a small Bridge Client that runs in the background, but that's coming later this year.",
   },
   {
-    q: "What if my print fails?",
-    a: "The Bridge Client streams heartbeats every 10 s. We detect failure, offer the creator a reprint at zero cost to you, and comp you for machine time up to that point.",
-  },
-  {
-    q: "Can I set my own hours?",
-    a: "Yes. Mark yourself Offline from the maker app any time and the dispatcher will route jobs elsewhere. No penalties, no quotas.",
+    q: "Can I run multiple printers?",
+    a: "One maker profile per printer for now. Use the same Google account; we'll add multi-printer profiles when there's enough demand to do it properly.",
   },
   {
     q: "How does payout work?",
-    a: "Stripe Connect, scheduled weekly on Fridays in the usual flow. Funds sit in escrow until the Creator confirms pickup, then release to your balance.",
+    a: "Stripe Connect Express — the standard for marketplaces. The creator pays at bid acceptance and the funds sit in escrow; once they've collected the print and you've minted the pickup QR they scan, your share releases automatically and lands in your Stripe balance, paid out weekly on Fridays.",
+  },
+  {
+    q: "Can I set my own hours?",
+    a: "Yes — you choose which jobs to bid on. Skip anything you can't fit, materials you don't stock, or just sit out for a week. There are no quotas, no minimum jobs per month, no penalties for going quiet.",
+  },
+  {
+    q: "What about reviews?",
+    a: "After a job is COMPLETED, both creator and maker can leave a 1–5 star + comment review. Reveal-on-both: neither sees the other's review until both have submitted, or 14 days have passed. Aggregate rating shows on bid lists and your public profile.",
   },
 ];
 

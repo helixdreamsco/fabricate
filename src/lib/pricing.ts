@@ -1,10 +1,12 @@
 import {
   DELIVERY_OPTIONS,
+  MACHINE_TIME_MIN_GBP,
   MACHINE_TIME_RATE_GBP_PER_HOUR,
   MARGIN_MULTIPLIER,
   MATERIALS,
   QUALITIES,
-  SERVICE_FEE_GBP,
+  SERVICE_FEE_BASE_GBP,
+  SERVICE_FEE_PCT,
   type MaterialKey,
   type QualityKey,
 } from "./catalog";
@@ -70,8 +72,8 @@ export function estimateQuote({
   const estMinutes = perPartMinutes * quantity;
 
   const materialCost = weightG * mat.pricePerGramGbp;
-  const machineCost = (estMinutes / 60) * MACHINE_TIME_RATE_GBP_PER_HOUR;
-  const serviceFee = SERVICE_FEE_GBP;
+  const rawMachineCost = (estMinutes / 60) * MACHINE_TIME_RATE_GBP_PER_HOUR;
+  const machineCost = Math.max(MACHINE_TIME_MIN_GBP, rawMachineCost);
   const deliveryFee =
     deliveryFeeOverride !== undefined
       ? deliveryFeeOverride
@@ -85,6 +87,9 @@ export function estimateQuote({
     subtotal = listSubtotal * (1 - Math.min(100, Math.max(0, discountPct)) / 100);
 
   const discountApplied = listSubtotal - subtotal;
+  // Service fee = £2 base + 10% of the printing subtotal. £2 floor when the
+  // subtotal is zero (free-mode community jobs).
+  const serviceFee = SERVICE_FEE_BASE_GBP + subtotal * SERVICE_FEE_PCT;
 
   // Per-extra-colour purge surcharge. Applied per part (not multiplied by
   // quantity since AMS sequences colours within a single multi-part job).

@@ -9,6 +9,11 @@ import { JobTimeline } from "@/components/jobs/JobTimeline";
 import { JobChat } from "@/components/jobs/JobChat";
 import { TestModeBadge } from "@/components/jobs/TestModeBadge";
 import { PickupCodeDisplay } from "@/components/jobs/PickupCodeDisplay";
+import { TestStripCard, type TestStripInitiator } from "@/components/jobs/TestStripCard";
+import { TestStripRequestPrompt } from "@/components/jobs/TestStripRequestPrompt";
+import { JobReviewPanel } from "@/components/jobs/JobReviewPanel";
+import { DisputeCard } from "@/components/jobs/DisputeCard";
+import { makerRatingAggregates } from "@/lib/reviews";
 import { serializeJobEvent, type SerializedJobMessage } from "@/lib/jobs";
 import { formatGbp } from "@/lib/money";
 import { paymentMode } from "@/lib/payments";
@@ -86,13 +91,16 @@ export default async function JobDetailPage({ params }: Params) {
           where: { jobId: id, status: { in: ["PENDING", "ACCEPTED"] } },
           orderBy: [{ status: "desc" }, { priceOfferPence: "asc" }],
           include: {
+            printer: true,
             maker: {
               select: {
                 id: true, displayName: true, bio: true, postcode: true,
-                hasAMS: true, printerModel: true, stripeOnboarded: true,
+                stripeOnboarded: true,
                 freeCompletionPhoto: true,
+                verification: { select: { status: true } },
                 user: {
                   select: {
+                    id: true,
                     memberships: {
                       where: creatorCommunityIds.length > 0
                         ? { communityId: { in: creatorCommunityIds } }
@@ -127,6 +135,15 @@ export default async function JobDetailPage({ params }: Params) {
         })
       : Promise.resolve(null),
   ]);
+
+  // Bulk-load maker rating aggregates for any bid maker we'll display.
+  const bidMakerUserIds = bids
+    .map((b) => b.maker.user?.id)
+    .filter((x): x is string => !!x);
+  const bidMakerRatings =
+    bidMakerUserIds.length > 0
+      ? await makerRatingAggregates(bidMakerUserIds)
+      : new Map<string, { avg: number; count: number }>();
 
   const serializedMessages: SerializedJobMessage[] = (messages as Array<{
     id: string; jobId: string; authorId: string; body: string;
@@ -214,6 +231,30 @@ export default async function JobDetailPage({ params }: Params) {
               ) : null}
             </Card>
 
+            {(() => {
+              const initiator: TestStripInitiator | null = job.testStripPaid
+                ? "paid"
+                : job.testStripRequestedByCreatorAt
+                  ? "creator_requested"
+                  : job.testStripOfferedByMakerAt
+                    ? "maker_offered"
+                    : null;
+              if (initiator) {
+                return (
+                  <TestStripCard
+                    code={job.testStripCode}
+                    initiator={initiator}
+                    feePence={job.testStripFeePence}
+                    audience="creator"
+                  />
+                );
+              }
+              if (isCreator && job.assignedMakerId) {
+                return <TestStripRequestPrompt jobId={job.id} />;
+              }
+              return null;
+            })()}
+
             {/* Creator-facing completion photo, when uploaded */}
             {isCreator && job.completionPhotoUrl ? (
               <Card className="p-5">
@@ -278,11 +319,17 @@ export default async function JobDetailPage({ params }: Params) {
                         displayName: b.maker.displayName,
                         bio: b.maker.bio,
                         postcode: b.maker.postcode,
-                        hasAMS: b.maker.hasAMS,
-                        printerModel: b.maker.printerModel,
+                        // Printer-specific fields come from the printer the
+                        // bid is committed to, not the maker as a whole.
+                        hasAMS: b.printer?.hasAMS ?? false,
+                        printerModel: b.printer?.printerModel ?? null,
                         stripeOnboarded: b.maker.stripeOnboarded,
                         freeCompletionPhoto: b.maker.freeCompletionPhoto,
+                        verified: b.maker.verification?.status === "approved",
                         sharedCommunities,
+                        rating: b.maker.user
+                          ? bidMakerRatings.get(b.maker.user.id) ?? null
+                          : null,
                       },
                       createdAt: b.createdAt.toISOString(),
                     };
@@ -308,6 +355,7 @@ export default async function JobDetailPage({ params }: Params) {
               <MakerBidPanel
                 jobId={job.id}
                 quotedPricePence={job.quotedPricePence}
+                platformFeePence={job.platformFeePence}
                 myBid={myBid ? {
                   priceOfferPence: myBid.priceOfferPence,
                   etaHours: myBid.etaHours,
@@ -336,6 +384,22 @@ export default async function JobDetailPage({ params }: Params) {
               </div>
               <JobTimeline events={events.map(serializeJobEvent)} />
             </Card>
+
+            <DisputeCard
+              jobId={job.id}
+              jobStatus={job.status}
+              viewerId={session.user.id}
+              isCreator={isCreator}
+              isMaker={false}
+            />
+
+            {isCreator && job.status === "COMPLETED" && job.assignedMaker ? (
+              <JobReviewPanel
+                jobId={job.id}
+                viewerId={session.user.id}
+                otherPartyName={job.assignedMaker.displayName}
+              />
+            ) : null}
           </div>
 
           {/* Right: chat (only after assignment for creator) */}

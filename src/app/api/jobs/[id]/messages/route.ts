@@ -106,6 +106,31 @@ export async function POST(req: Request, { params }: Params) {
       },
     },
   });
+  // In-app notification to the recipient (separate from existing email path).
+  if (job?.assignedMaker) {
+    const recipientUserId =
+      session.user.id === job.creatorId
+        ? job.assignedMaker.userId
+        : session.user.id === job.assignedMaker.userId
+          ? job.creatorId
+          : null;
+    if (recipientUserId) {
+      const fromName = saved.author.name ?? "Someone";
+      const linkPath =
+        recipientUserId === job.creatorId
+          ? `/jobs/${id}`
+          : `/maker/jobs/${id}`;
+      const { notify: doNotify } = await import("@/lib/notify");
+      await doNotify({
+        recipientId: recipientUserId,
+        kind: "message_received",
+        body: `${fromName}: ${parsed.data.body.slice(0, 80)}`,
+        link: linkPath,
+        data: { jobId: id },
+      });
+    }
+  }
+
   if (job?.assignedMaker) {
     const fromName = saved.author.name ?? saved.author.id;
     if (session.user.id === job.creatorId) {

@@ -27,6 +27,10 @@ export function platformFeePenceFor(amountPence: number): number {
  *  maker before pickup. Forwarded to the maker as a payout bonus. */
 export const COMPLETION_PHOTO_FEE_PENCE = 200;
 
+/** Default fee for the verification test strip add-on (paid to the maker
+ *  alongside the print fee). Default opt-in at checkout. */
+export const TEST_STRIP_PRICE_PENCE = 300;
+
 /** Effective completion-photo fee for a given (job, maker) pair. Waived
  *  when the maker has opted into offering the service free. */
 export function effectiveCompletionPhotoFee(

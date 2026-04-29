@@ -12,7 +12,11 @@ import { MATERIALS, QUALITIES } from "@/lib/catalog";
 import { estimateQuote } from "@/lib/pricing";
 import { formatGBP, formatDuration, cn } from "@/lib/utils";
 import { useOrder } from "@/lib/order-store";
-import { poundsToPence, COMPLETION_PHOTO_FEE_PENCE } from "@/lib/money";
+import {
+  poundsToPence,
+  COMPLETION_PHOTO_FEE_PENCE,
+  TEST_STRIP_PRICE_PENCE,
+} from "@/lib/money";
 import type { MakerProfileSummary } from "@/lib/maker-profile";
 
 /**
@@ -52,6 +56,9 @@ export function CheckoutForm({
   // Optional add-on: maker must upload a photo of the finished print before
   // it can be marked ready for pickup. Goes to the maker as a payout bonus.
   const [requirePhoto, setRequirePhoto] = React.useState(false);
+  // Verification test strip — small printed stencil with the order's HD-XXXXXX
+  // code engraved. Default ON; creator pays the maker for filament+time.
+  const [includeTestStrip, setIncludeTestStrip] = React.useState(true);
 
   React.useEffect(() => {
     if (!draft.analysis || !draft.file) {
@@ -89,7 +96,13 @@ export function CheckoutForm({
   }, [quote.total, isStep]);
 
   const parsedPrice = parseFloat(pricePounds);
-  const validPrice = Number.isFinite(parsedPrice) && parsedPrice > 0;
+  // Auto-estimate is the floor for STL/3MF inputs. STEP files don't get an
+  // estimate so the user-entered price is the floor (must be > 0).
+  const minPrice = isStep ? 0 : quote.total;
+  const validPrice =
+    Number.isFinite(parsedPrice) &&
+    parsedPrice > 0 &&
+    (isStep || parsedPrice >= minPrice);
   const effectivePrice = validPrice ? parsedPrice : quote.total;
 
   const material = MATERIALS.find((m) => m.key === draft.material)!;
@@ -99,7 +112,11 @@ export function CheckoutForm({
     e.preventDefault();
     if (!draft.file || !draft.analysis) return;
     if (!validPrice) {
-      setError("Set a price before posting.");
+      setError(
+        isStep
+          ? "Set a price before posting."
+          : `Price must be at least £${minPrice.toFixed(2)} (auto-estimated minimum).`,
+      );
       return;
     }
     setPending(true);
@@ -131,6 +148,7 @@ export function CheckoutForm({
           : null,
         notes: notes || null,
         quotedPricePence: poundsToPence(effectivePrice),
+        minPricePence: poundsToPence(minPrice),
         // Pickup location defaults to the assigned maker's postcode; creator
         // can add a free-text note here suggesting an alternate meet-up.
         pickupPostcode: null,
@@ -140,6 +158,7 @@ export function CheckoutForm({
         prioritizedMakerId: prioritizedMakerId,
         communityId: draft.community?.id ?? null,
         requireCompletionPhoto: requirePhoto,
+        testStripPaid: includeTestStrip,
       };
 
       const jobRes = await fetch("/api/jobs", {
@@ -253,14 +272,14 @@ export function CheckoutForm({
                   <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/40 mt-1">
                     {isStep
                       ? "STEP files don't auto-estimate. Pick a fair price; makers can counter-bid."
-                      : "Auto-estimated. Edit if you want."}
+                      : `Auto-estimated minimum £${minPrice.toFixed(2)}. You can post higher.`}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <span className="text-2xl font-black text-black/45 tabular-nums">£</span>
                   <input
                     type="number"
-                    min={0.5}
+                    min={isStep ? 0.5 : minPrice}
                     step={0.5}
                     inputMode="decimal"
                     required
@@ -333,6 +352,31 @@ export function CheckoutForm({
                       Maker uploads a photo of the finished print. You see it
                       before going to collect. Fee passes to the maker — some
                       offer it free.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-black/[0.08] px-3 py-3 hover:border-black/25 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={includeTestStrip}
+                    onChange={(e) => setIncludeTestStrip(e.target.checked)}
+                    className="w-4 h-4 mt-0.5"
+                  />
+                  <span className="block flex-1 min-w-0">
+                    <span className="flex items-baseline justify-between gap-2 flex-wrap">
+                      <span className="font-mono text-[11px] uppercase tracking-[0.16em]">
+                        Include test strip
+                      </span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 tabular-nums">
+                        +{formatGBP(TEST_STRIP_PRICE_PENCE / 100)}
+                      </span>
+                    </span>
+                    <span className="block text-[12px] font-light text-black/55 mt-1 leading-snug">
+                      Maker prints a small stencil with your order&rsquo;s
+                      unique code, photographed next to the finished part as
+                      proof their printer is working. Recommended for
+                      first-time orders.
                     </span>
                   </span>
                 </label>

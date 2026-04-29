@@ -1,15 +1,16 @@
 // Prisma schema for Fabricate.
 //
-// Stage 1: SQLite (file-based, zero-ops, great for demo + local dev).
-// Stage 2 migration path: swap provider to `postgresql` and point
-// DATABASE_URL at Cloud SQL inside genome-494016. No model changes required.
+// Postgres-backed. Local dev runs against `fabricate_dev` on the user's
+// Homebrew Postgres 16. Production points DATABASE_URL at the hosted
+// Postgres (Neon / Cloud SQL / Vercel Postgres). No model changes needed
+// to swap — both URLs use the postgresql:// scheme.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -36,6 +37,19 @@ model User {
   createdJobs     Job[]         @relation("JobCreator")
   jobMessages     JobMessage[]  @relation("JobMessageAuthor")
   paymentsAsPayer Payment[]     @relation("PaymentPayer")
+  authoredReviews Review[]      @relation("ReviewAuthor")
+  receivedReviews Review[]      @relation("ReviewSubject")
+  disputesFiled   Dispute[]     @relation("DisputeFiledBy")
+  disputeMessages DisputeMessage[]
+  notifications   Notification[] @relation("NotificationRecipient")
+  notificationPrefs NotificationPreference?
+  legalConsents   LegalConsent[]
+
+  // Latest accepted version of each legal document. The gate at
+  // src/lib/legal.ts compares these against the current TERMS_VERSION /
+  // PRIVACY_VERSION constants and forces a re-acceptance trip when below.
+  acceptedTermsVersion   Int @default(0)
+  acceptedPrivacyVersion Int @default(0)
 }
 
 model Account {
@@ -150,13 +164,6 @@ model MakerProfile {
   lat         Float?
   lng         Float?
 
-  hasAMS       Boolean @default(false)
-  printerModel String?
-
-  // JSON-encoded array of MaterialKey strings the maker stocks
-  // (e.g. `["PLA","PETG"]`). Empty/null = unspecified.
-  materials    String?
-
   // Maker waives the creator's "completion photo" fee. Surfaces as a badge
   // in /market and on the maker's bids. When the creator accepts a bid from
   // such a maker on a photo-required job, the fee is not charged.
@@ -174,6 +181,41 @@ model MakerProfile {
   prioritizedJobs Job[]    @relation("JobPrioritizedMaker")
   payouts         Payout[]
   bookmarks       MakerJobBookmark[]
+  verification    MakerVerification?
+  printers        Printer[]
+}
+
+// A single printer in a maker's setup. Makers can list multiple, each with
+// its own model + AMS state + material stock. The lowest `priority` value
+// among active printers that can fulfil a job is auto-selected at bid time.
+model Printer {
+  id      String       @id @default(cuid())
+  makerId String
+  maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+
+  // Maker's own label — often "Bambu Lab P1S" or a nickname like
+  // "Workhorse" / "Detail rig".
+  displayName  String
+  // Catalogue model key (matches PRINTER_MODELS in src/lib/printer-models.ts).
+  printerModel String
+  hasAMS       Boolean @default(false)
+  // JSON-encoded array of MaterialKey strings stocked on this printer.
+  materials    String  @default("[]")
+
+  // Lower number = higher priority. The first active printer that matches
+  // a job's material + AMS requirements wins auto-selection at bid time.
+  priority Int     @default(0)
+  // Maker can mark a printer offline temporarily without deleting it.
+  active   Boolean @default(true)
+  notes    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bids JobBid[]
+
+  @@index([makerId, priority])
+  @@index([makerId, active])
 }
 
 // Maker's per-job action: SAVED (bookmarked for later) or HIDDEN
@@ -218,8 +260,15 @@ model Job {
   estimatedMinutes Int?
   notes            String?
 
-  // Pricing in pence to avoid float drift
+  // Pricing in pence to avoid float drift.
+  // - quotedPricePence: the creator's listed price (≥ minPricePence).
+  // - minPricePence: the auto-estimate total at posting time. Acts as a
+  //   creator-side floor (server rejects sub-floor postings).
+  // - platformFeePence: the platform's cut snapshot. Acts as a maker-bid
+  //   floor — bids ≤ this value would erode platform revenue and are
+  //   rejected at /api/jobs/[id]/bids.
   quotedPricePence Int
+  minPricePence    Int @default(0)
   platformFeePence Int @default(0)
 
   // Optional creator add-on: maker must upload a photo of the finished print
@@ -230,6 +279,24 @@ model Job {
   completionPhotoFeePence   Int       @default(0)
   completionPhotoUrl        String?
   completionPhotoUploadedAt DateTime?
+
+  // Test strip — small printable stencil with a unique HD-XXXXXX code engraved,
+  // visible to both creator and maker. Used as a verification artifact (maker
+  // photographs it next to the finished part to prove "this print was made on
+  // a working printer"). Default opt-in at checkout for £3 paid to the maker.
+  // testStripFreeRequestedAt is a hook for the slice 2 dispute flow where the
+  // creator can request a free reprint after a failed delivery.
+  // testStripCode is set on every job. The OTHER three fields gate whether
+  // the test strip surfaces in the creator's view: it appears iff the
+  // creator paid at checkout, the creator requested one mid-flight (free,
+  // typically after a print issue), or the maker preemptively offered one.
+  // The maker's view shows the card unconditionally — they always have the
+  // option to print a verification stencil.
+  testStripCode               String    @unique
+  testStripPaid               Boolean   @default(true)
+  testStripFeePence           Int       @default(0)
+  testStripRequestedByCreatorAt DateTime?
+  testStripOfferedByMakerAt   DateTime?
 
   // Pickup happens at the maker's location by default (see MakerProfile.postcode).
   // pickupPostcode is now an optional creator override — only set if they want
@@ -257,8 +324,11 @@ model Job {
   // cascade-delete jobs.
   communityId String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  // Set when status transitions to COMPLETED. Used as the anchor for the
+  // 14-day reveal cutoff on mutual reviews.
+  completedAt DateTime?
 
   bids         JobBid[]
   events       JobEvent[]
@@ -266,6 +336,8 @@ model Job {
   pickupTokens PickupToken[]
   payment      Payment?
   bookmarks    MakerJobBookmark[]
+  reviews      Review[]
+  disputes     Dispute[]
 
   @@index([status, createdAt])
   @@index([creatorId])
@@ -280,6 +352,11 @@ model JobBid {
   makerId String
   maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
 
+  // The printer this bid commits. Null only for legacy / migration-period
+  // bids; new bids always carry a printer chosen by selectBestPrinter().
+  printerId String?
+  printer   Printer? @relation(fields: [printerId], references: [id], onDelete: SetNull)
+
   priceOfferPence Int
   etaHours        Int
   message         String?
@@ -293,6 +370,7 @@ model JobBid {
   @@unique([jobId, makerId])
   @@index([jobId, status])
   @@index([makerId])
+  @@index([printerId])
 }
 
 model JobEvent {
@@ -386,7 +464,9 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  payout Payout?
+  payout    Payout?
+  refunds   Refund[]
+  taxRecord TaxRecord?
 }
 
 model Payout {
@@ -411,4 +491,231 @@ model Payout {
   updatedAt DateTime @updatedAt
 
   @@index([makerId, status])
+}
+
+// Mutual reviews between creator and maker after a job hits COMPLETED.
+// Reveal-on-both: a review's `revealedAt` is null until either both parties
+// have submitted theirs OR 14 days have passed since the job completed (the
+// reveal window enforces both submissions, but never blocks reputation
+// indefinitely if one party ghosts). Once revealed, public on profile pages
+// and aggregated into rating badges.
+model Review {
+  id String @id @default(cuid())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  // "creator_to_maker" | "maker_to_creator" — exactly one row per direction
+  // per job (DB-enforced via unique constraint below).
+  direction String
+
+  authorId String
+  author   User   @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  subjectId String
+  subject   User   @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  rating  Int
+  comment String?
+
+  createdAt  DateTime  @default(now())
+  // Null = still hidden from non-author. Set when the second party submits OR
+  // when a lazy-read finds the 14-day window has passed.
+  revealedAt DateTime?
+
+  @@unique([jobId, direction])
+  @@index([subjectId, revealedAt])
+  @@index([jobId])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Disputes — creator/maker disagreement on a job. Triggers refund flow.
+// ──────────────────────────────────────────────────────────────
+model Dispute {
+  id        String @id @default(cuid())
+  jobId     String
+  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  filedById String
+  filedBy   User   @relation("DisputeFiledBy", fields: [filedById], references: [id], onDelete: Cascade)
+
+  reason String
+
+  // OPEN | RESOLVED_CREATOR | RESOLVED_MAKER
+  status            String  @default("OPEN")
+  resolvedAt        DateTime?
+  resolvedByAdminId String?
+  resolutionNote    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages DisputeMessage[]
+
+  // Only one OPEN dispute per job at a time. SQLite treats nulls as distinct
+  // in unique indexes, so resolved disputes don't block re-opening.
+  @@index([jobId, status])
+  @@index([status, createdAt])
+}
+
+model DisputeMessage {
+  id          String   @id @default(cuid())
+  disputeId   String
+  dispute     Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body        String
+  evidenceUrl String?
+  createdAt   DateTime @default(now())
+
+  @@index([disputeId, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Refunds — partial or full refund records. Driven by dispute resolution.
+// ──────────────────────────────────────────────────────────────
+model Refund {
+  id        String @id @default(cuid())
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  amountPence Int
+  reason      String?
+
+  // pending | succeeded | failed
+  status         String  @default("pending")
+  mode           String  @default("sim")
+  stripeRefundId String? @unique
+  failureReason  String?
+
+  issuedByAdminId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Maker verification — KYC + proof of capability. Bid placement gated.
+// ──────────────────────────────────────────────────────────────
+model MakerVerification {
+  id      String       @id @default(cuid())
+  makerId String       @unique
+  maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+
+  // Overall maker-verification status:
+  //   not_started        — nothing done
+  //   id_verified        — Stripe Identity returned verified, awaiting calibration
+  //   pending_review     — calibration uploaded, admin to look
+  //   approved           — admin approved calibration; maker can bid
+  //   rejected           — admin rejected calibration with a reason
+  status String @default("not_started")
+
+  // Stripe Identity (gov ID + selfie liveness; address taken from doc when present).
+  // We DON'T store the document image ourselves — Stripe holds it.
+  stripeIdentityVerificationId String?   @unique
+  stripeIdentityStatus         String?   // mirrors Stripe: requires_input | processing | verified | canceled
+  stripeIdentityVerifiedAt     DateTime?
+
+  // Calibration print: photo uploaded by the maker, reviewed by admin.
+  calibrationPrintUrl String?
+
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  reviewedByAdminId String?
+  rejectionReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────────────────────
+// Notifications — generic in-app + email feed.
+// ──────────────────────────────────────────────────────────────
+model Notification {
+  id          String   @id @default(cuid())
+  recipientId String
+  recipient   User     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  // bid_placed | bid_accepted | message_received | status_change |
+  // pickup_minted | dispute_filed | dispute_resolved | refund_issued |
+  // review_submitted | review_revealed | maker_verified
+  kind String
+
+  body String
+  link String?
+  // JSON-encoded data (small, optional)
+  data String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([recipientId, readAt, createdAt])
+}
+
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // JSON map: kind → { email: bool, inApp: bool }. Empty = all channels on.
+  prefs String @default("{}")
+
+  updatedAt DateTime @updatedAt
+}
+
+// ──────────────────────────────────────────────────────────────
+// Wait-list — marketing capture for gated trials. Currently used by the
+// auto-print trial signup on /makers.
+// ──────────────────────────────────────────────────────────────
+model WaitlistEntry {
+  id        String   @id @default(cuid())
+  email     String
+  kind      String
+  createdAt DateTime @default(now())
+
+  @@unique([email, kind])
+  @@index([kind, createdAt])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Tax record — per-payment VAT and income breakdown for HMRC reporting.
+// ──────────────────────────────────────────────────────────────
+model TaxRecord {
+  id        String  @id @default(cuid())
+  paymentId String  @unique
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  grossPence          Int
+  platformFeeNetPence Int
+  platformFeeVatPence Int
+  makerPayoutPence    Int
+  vatRate             Float @default(0.20)
+
+  capturedAt DateTime @default(now())
+
+  @@index([capturedAt])
+}
+
+// Audit log of legal-document acceptances. Append-only — every consent is a
+// new row so we can prove exactly which version of which document a user
+// accepted at what time, from what IP, what user-agent. No row is ever
+// updated or deleted; the most recent acceptance per (userId, kind) is the
+// effective consent.
+model LegalConsent {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // "terms" | "privacy"
+  kind    String
+  version Int
+
+  ipAddress String?
+  userAgent String?
+
+  acceptedAt DateTime @default(now())
+
+  @@index([userId, kind, acceptedAt])
 }

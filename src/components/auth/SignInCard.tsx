@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
@@ -29,20 +30,60 @@ function GoogleGlyph({ className }: { className?: string }) {
 
 export function SignInCard({ callbackUrl = "/" }: { callbackUrl?: string }) {
   const [pending, setPending] = React.useState(false);
+  const [accepted, setAccepted] = React.useState(false);
   return (
     <div className="flex flex-col gap-6">
+      <label className="flex items-start gap-3 cursor-pointer select-none rounded-lg border border-black/[0.08] p-3 hover:border-black/25 transition-colors">
+        <input
+          type="checkbox"
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          className="w-4 h-4 mt-0.5"
+        />
+        <span className="block flex-1 text-[12px] font-light text-black/70 leading-snug">
+          I have read and accept the{" "}
+          <Link
+            href="/terms"
+            target="_blank"
+            className="underline underline-offset-2 hover:text-black"
+          >
+            Terms of Service
+          </Link>
+          ,{" "}
+          <Link
+            href="/privacy"
+            target="_blank"
+            className="underline underline-offset-2 hover:text-black"
+          >
+            Privacy Policy
+          </Link>
+          , and{" "}
+          <Link
+            href="/acceptable-use"
+            target="_blank"
+            className="underline underline-offset-2 hover:text-black"
+          >
+            Acceptable Use Policy
+          </Link>
+          .
+        </span>
+      </label>
       <Button
         type="button"
         size="lg"
-        disabled={pending}
+        disabled={pending || !accepted}
         onClick={() => {
           setPending(true);
           signIn("google", { callbackUrl });
         }}
-        className="w-full justify-center !bg-white !text-[#0a0a0a] !border-black/15 hover:!bg-black/[0.04]"
+        className="w-full justify-center !bg-white !text-[#0a0a0a] !border-black/15 hover:!bg-black/[0.04] disabled:opacity-50"
         startIcon={<GoogleGlyph className="w-4 h-4 mr-2" />}
       >
-        {pending ? "Redirecting…" : "Continue with Google"}
+        {pending
+          ? "Redirecting…"
+          : accepted
+            ? "Continue with Google"
+            : "Tick the box first"}
       </Button>
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-black/10" />

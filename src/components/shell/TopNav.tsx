@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ModeToggle } from "./ModeToggle";
+import { NotificationBell } from "./NotificationBell";
+import { HelixLogo } from "./HelixLogo";
 
 export async function TopNav() {
   const session = await auth();
@@ -26,7 +28,10 @@ export async function TopNav() {
           className="flex items-center gap-2.5 group"
           aria-label="Fabricate home"
         >
-          <LogoMark />
+          <HelixLogo
+            size={26}
+            className="group-hover:rotate-180 transition-transform duration-500"
+          />
           <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-[#0a0a0a] font-bold">
             Fabricate
           </div>
@@ -84,6 +89,7 @@ export async function TopNav() {
               Track order
             </Link>
           )}
+          {user ? <NotificationBell /> : null}
           {user ? (
             <Link
               href="/account"
@@ -137,32 +143,3 @@ function NavPill({ href, label }: { href: string; label: string }) {
   );
 }
 
-function LogoMark() {
-  return (
-    <svg
-      width="26"
-      height="26"
-      viewBox="0 0 26 26"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="group-hover:rotate-45 transition-transform duration-300"
-    >
-      <rect
-        x="1"
-        y="1"
-        width="24"
-        height="24"
-        rx="6"
-        stroke="#0a0a0a"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M7 13 L13 7 L19 13 L13 19 Z"
-        stroke="#0a0a0a"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
-      <circle cx="13" cy="13" r="1.5" fill="#0a0a0a" />
-    </svg>
-  );
-}

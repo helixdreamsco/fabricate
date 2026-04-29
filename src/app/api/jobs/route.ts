@@ -3,8 +3,13 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordJobEvent } from "@/lib/jobs";
-import { platformFeePenceFor, COMPLETION_PHOTO_FEE_PENCE } from "@/lib/money";
+import {
+  platformFeePenceFor,
+  COMPLETION_PHOTO_FEE_PENCE,
+  TEST_STRIP_PRICE_PENCE,
+} from "@/lib/money";
 import { notifyJobPrioritized } from "@/lib/notifications";
+import { generateUniqueTestStripCode } from "@/lib/test-print/code";
 
 const CreateSchema = z.object({
   fileName: z.string().min(1).max(200),
@@ -22,6 +27,9 @@ const CreateSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
 
   quotedPricePence: z.number().int().positive(),
+  // Auto-estimate snapshot. Creator's quoted price must be >= this. Client
+  // computes via estimateQuote(); server stores it for audit + later UI.
+  minPricePence: z.number().int().nonnegative(),
 
   // All pickup fields optional — pickup defaults to the assigned maker's
   // location. Creator only fills these if they want to suggest a meet-up
@@ -34,6 +42,7 @@ const CreateSchema = z.object({
   prioritizedMakerId: z.string().optional().nullable(),
   communityId: z.string().optional().nullable(),
   requireCompletionPhoto: z.boolean().optional(),
+  testStripPaid: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -57,13 +66,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "prioritized maker not found" }, { status: 400 });
   }
 
+  if (d.quotedPricePence < d.minPricePence) {
+    return NextResponse.json(
+      {
+        error: `Quoted price (£${(d.quotedPricePence / 100).toFixed(2)}) is below the minimum estimate (£${(d.minPricePence / 100).toFixed(2)}).`,
+      },
+      { status: 400 },
+    );
+  }
+
   const platformFee = platformFeePenceFor(d.quotedPricePence);
   const requirePhoto = d.requireCompletionPhoto ?? false;
+  const testStripPaid = d.testStripPaid ?? true;
+  const testStripCode = await generateUniqueTestStripCode();
 
   const job = await prisma.job.create({
     data: {
       requireCompletionPhoto: requirePhoto,
       completionPhotoFeePence: requirePhoto ? COMPLETION_PHOTO_FEE_PENCE : 0,
+      testStripCode,
+      testStripPaid,
+      testStripFeePence: testStripPaid ? TEST_STRIP_PRICE_PENCE : 0,
       creatorId: session.user.id,
       fileName: d.fileName,
       fileUrl: d.fileUrl,
@@ -79,6 +102,7 @@ export async function POST(req: Request) {
       estimatedMinutes: d.estimatedMinutes ?? null,
       notes: d.notes ?? null,
       quotedPricePence: d.quotedPricePence,
+      minPricePence: d.minPricePence,
       platformFeePence: platformFee,
       pickupPostcode: d.pickupPostcode ?? null,
       pickupLat: d.pickupLat ?? null,

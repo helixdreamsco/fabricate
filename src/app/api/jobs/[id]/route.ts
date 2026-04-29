@@ -22,7 +22,13 @@ export async function GET(_req: Request, { params }: Params) {
     include: {
       creator: { select: { id: true, name: true, image: true, email: true } },
       assignedMaker: {
-        select: { id: true, displayName: true, userId: true, postcode: true, hasAMS: true, printerModel: true },
+        select: {
+          id: true,
+          displayName: true,
+          userId: true,
+          postcode: true,
+          printers: { orderBy: { priority: "asc" } },
+        },
       },
       prioritizedMaker: { select: { id: true, displayName: true, userId: true } },
       payment: true,
@@ -61,10 +67,13 @@ export async function GET(_req: Request, { params }: Params) {
       include: {
         maker: {
           select: {
-            id: true, displayName: true, postcode: true, hasAMS: true,
-            printerModel: true, stripeOnboarded: true,
+            id: true,
+            displayName: true,
+            postcode: true,
+            stripeOnboarded: true,
           },
         },
+        printer: true,
       },
     });
     bids = all;

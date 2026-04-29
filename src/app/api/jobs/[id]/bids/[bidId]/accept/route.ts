@@ -179,6 +179,25 @@ export async function POST(req: Request, { params }: Params) {
     etaHours: bid.etaHours,
   });
 
+  const { notify: doNotify } = await import("@/lib/notify");
+  await doNotify({
+    recipientId: bid.maker.userId,
+    kind: "bid_accepted",
+    body: `Your bid on ${job.fileName} was accepted (£${(bid.priceOfferPence / 100).toFixed(2)}).`,
+    link: `/maker/jobs/${job.id}`,
+    data: { jobId: job.id, bidId: bid.id },
+  });
+
+  // Snapshot tax record for HMRC reporting. Platform fee is treated as
+  // VAT-inclusive at 20% UK rate; maker payout = gross - platform fee.
+  const { captureTaxRecord } = await import("@/lib/tax");
+  await captureTaxRecord({
+    paymentId: result.payment.id,
+    grossPence: result.payment.amountPence,
+    platformFeeIncVatPence: result.payment.platformFeePence,
+    makerPayoutPence: result.payment.amountPence - result.payment.platformFeePence,
+  });
+
   const declinedBids = await prisma.jobBid.findMany({
     where: { jobId: job.id, status: "DECLINED", id: { not: bid.id } },
     include: { maker: { include: { user: { select: { email: true } } } } },

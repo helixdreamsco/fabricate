@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join, extname } from "node:path";
+import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 import { auth } from "@/auth";
 import { uploadsDir } from "@/lib/storage";
+import {
+  assertSize,
+  assertMagicBytes,
+  getExtension,
+  validateStlGeometry,
+  UploadValidationError,
+} from "@/lib/upload-validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED = new Set([".stl", ".3mf", ".obj", ".step", ".stp"]);
-const MAX_BYTES = 80 * 1024 * 1024; // 80 MB
-
 /**
  * POST a single file (multipart/form-data, field "file"). Returns
- * { fileUrl, fileName, fileSizeBytes } that the job-creation route stores.
- *
- * Disk-based for now; swap to S3/R2 before scaling beyond a single instance
- * (the filesystem is ephemeral on most PaaS deploys).
+ * { fileUrl, fileName, fileSizeBytes, warnings? } that the job-creation
+ * route stores. Validates: size, extension whitelist, magic-byte sniff,
+ * STL manifold check.
  */
 export async function POST(req: Request) {
   const session = await auth();
@@ -29,22 +32,51 @@ export async function POST(req: Request) {
   if (!(file instanceof File))
     return NextResponse.json({ error: "missing 'file'" }, { status: 400 });
 
-  if (file.size > MAX_BYTES)
-    return NextResponse.json({ error: "file too large" }, { status: 413 });
+  let ext: ReturnType<typeof getExtension>;
+  try {
+    assertSize(file.size);
+    ext = getExtension(file.name);
+  } catch (err) {
+    if (err instanceof UploadValidationError)
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
 
-  const ext = extname(file.name).toLowerCase();
-  if (!ALLOWED.has(ext))
-    return NextResponse.json({ error: `unsupported extension '${ext}'` }, { status: 415 });
+  const buf = Buffer.from(await file.arrayBuffer());
+  const bytes = new Uint8Array(buf);
 
-  const safeName = `${randomBytes(12).toString("hex")}${ext}`;
+  const warnings: string[] = [];
+  try {
+    assertMagicBytes(bytes, ext);
+    if (ext === "stl") {
+      const meta = validateStlGeometry(bytes);
+      // Largest registered build volume across PrinterSpecs in the catalogue.
+      const MAX_BV_MM = 360;
+      const fits =
+        meta.dimsMm.x <= MAX_BV_MM &&
+        meta.dimsMm.y <= MAX_BV_MM &&
+        meta.dimsMm.z <= MAX_BV_MM;
+      if (!fits) {
+        warnings.push(
+          `Mesh dimensions (${meta.dimsMm.x}×${meta.dimsMm.y}×${meta.dimsMm.z} mm) exceed the largest registered build volume (${MAX_BV_MM} mm). Won't fit any maker's printer.`,
+        );
+      }
+    }
+  } catch (err) {
+    if (err instanceof UploadValidationError)
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+
+  const safeName = `${randomBytes(12).toString("hex")}.${ext}`;
   const dir = uploadsDir();
   await mkdir(dir, { recursive: true });
-  const buf = Buffer.from(await file.arrayBuffer());
   await writeFile(join(dir, safeName), buf);
 
   return NextResponse.json({
     fileUrl: `/api/uploads/${safeName}`,
     fileName: file.name,
     fileSizeBytes: buf.length,
+    warnings,
   });
 }

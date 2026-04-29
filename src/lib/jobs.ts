@@ -4,6 +4,7 @@
 
 import { prisma } from "./prisma";
 import { bus } from "./events";
+import { notify } from "./notify";
 
 export const JOB_STATUSES = [
   "OPEN",
@@ -170,7 +171,10 @@ export async function transitionJob(opts: {
   }
   const updated = await prisma.job.update({
     where: { id: opts.jobId },
-    data: { status: opts.to },
+    data: {
+      status: opts.to,
+      ...(opts.to === "COMPLETED" ? { completedAt: new Date() } : {}),
+    },
   });
   await recordJobEvent({
     jobId: opts.jobId,
@@ -180,5 +184,43 @@ export async function transitionJob(opts: {
     body: opts.body ?? `${from} → ${opts.to}`,
     data: { from, to: opts.to },
   });
+
+  // Surface key milestones to both parties via notifications. Skip noise on
+  // intermediate transitions (ASSIGNED → IN_PROGRESS) — chat covers those.
+  if (opts.to === "READY_FOR_PICKUP" || opts.to === "COMPLETED" || opts.to === "CANCELLED") {
+    const full = await prisma.job.findUnique({
+      where: { id: opts.jobId },
+      select: {
+        creatorId: true,
+        fileName: true,
+        assignedMaker: { select: { userId: true } },
+      },
+    });
+    if (full) {
+      const link = `/jobs/${opts.jobId}`;
+      const labels: Record<string, string> = {
+        READY_FOR_PICKUP: "is ready for pickup",
+        COMPLETED: "has been marked complete",
+        CANCELLED: "has been cancelled",
+      };
+      const body = `${full.fileName} ${labels[opts.to]}.`;
+      await notify({
+        recipientId: full.creatorId,
+        kind: "status_change",
+        body,
+        link,
+        data: { jobId: opts.jobId, to: opts.to },
+      });
+      if (full.assignedMaker?.userId && full.assignedMaker.userId !== opts.actorId) {
+        await notify({
+          recipientId: full.assignedMaker.userId,
+          kind: "status_change",
+          body,
+          link: `/maker/jobs/${opts.jobId}`,
+          data: { jobId: opts.jobId, to: opts.to },
+        });
+      }
+    }
+  }
   return updated;
 }

@@ -1,0 +1,136 @@
+# Deploy Fabricate to Cloud Run on every push to main.
+#
+# Pipeline:
+#   1. Auth to GCP via Workload Identity Federation (no JSON keys).
+#   2. Build the Docker image with Cloud Build (faster than runner-side build).
+#   3. Push to Artifact Registry.
+#   4. Run `prisma migrate deploy` against Cloud SQL via the Cloud SQL Auth
+#      Proxy (sidecar container in the runner).
+#   5. Deploy the new image to Cloud Run.
+#
+# Required GitHub secrets (set under Settings → Secrets and variables → Actions):
+#   GCP_PROJECT_ID            — e.g. genome-494016
+#   GCP_REGION                — e.g. europe-west2
+#   GCP_WIF_PROVIDER          — projects/.../workloadIdentityPools/.../providers/...
+#   GCP_DEPLOY_SA             — fabricate-deploy@PROJECT.iam.gserviceaccount.com
+#   GCP_AR_REPOSITORY         — Artifact Registry repo name (e.g. fabricate)
+#   CLOUD_SQL_INSTANCE        — PROJECT:REGION:INSTANCE (e.g. genome-494016:europe-west2:fabricate-prod)
+#   DATABASE_URL_MIGRATE      — postgresql://USER:PASS@127.0.0.1:5432/fabricate?schema=public
+#                                (proxy listens on localhost during the migrate step)
+#   CLOUD_RUN_SERVICE         — Cloud Run service name (e.g. fabricate-web)
+#   CLOUD_STORAGE_BUCKET      — uploads bucket name (e.g. fabricate-uploads)
+#
+# All runtime app secrets (AUTH_SECRET, STRIPE_*, RESEND_API_KEY, etc.) are
+# set on the Cloud Run service itself, not in this workflow. Use:
+#   gcloud run services update fabricate-web --update-secrets=NAME=secret-id:latest
+# (See GCP_SETUP.md.)
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # required for Workload Identity Federation
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: ${{ secrets.GCP_REGION }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # ── Build + push image ───────────────────────────────────────────
+      - name: Compute image tag
+        id: image
+        run: |
+          TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ secrets.GCP_AR_REPOSITORY }}/fabricate-web:${{ github.sha }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build with Cloud Build
+        run: |
+          gcloud builds submit \
+            --tag ${{ steps.image.outputs.tag }} \
+            --timeout=20m \
+            --machine-type=e2-highcpu-8
+
+      # ── Migrate database via Cloud SQL Auth Proxy ────────────────────
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install Prisma CLI
+        run: npm ci --include=dev
+
+      - name: Start Cloud SQL Auth Proxy
+        run: |
+          curl -L -o cloud-sql-proxy https://storage.googleapis.com/cloud-sql-connectors/cloud-sql-proxy/v2.13.0/cloud-sql-proxy.linux.amd64
+          chmod +x cloud-sql-proxy
+          ./cloud-sql-proxy --port 5432 ${{ secrets.CLOUD_SQL_INSTANCE }} &
+          # Wait for the proxy to be ready
+          for i in {1..30}; do
+            if nc -z localhost 5432; then break; fi
+            sleep 1
+          done
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_MIGRATE }}
+        run: npx prisma migrate deploy
+
+      # ── Deploy to Cloud Run ──────────────────────────────────────────
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ secrets.CLOUD_RUN_SERVICE }} \
+            --image ${{ steps.image.outputs.tag }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --add-cloudsql-instances ${{ secrets.CLOUD_SQL_INSTANCE }} \
+            --add-volume name=uploads,type=cloud-storage,bucket=${{ secrets.CLOUD_STORAGE_BUCKET }} \
+            --add-volume-mount volume=uploads,mount-path=/data \
+            --set-env-vars "DATA_DIR=/data,NODE_ENV=production,AUTH_TRUST_HOST=true,NEXT_TELEMETRY_DISABLED=1" \
+            --service-account ${{ secrets.GCP_DEPLOY_SA }} \
+            --memory 1Gi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 10 \
+            --concurrency 80 \
+            --timeout 60s
+
+      - name: Get service URL
+        run: |
+          URL=$(gcloud run services describe ${{ secrets.CLOUD_RUN_SERVICE }} \
+            --region ${{ env.GCP_REGION }} \
+            --format 'value(status.url)')
+          echo "Deployed to: $URL"
+          echo "## Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "URL: $URL" >> $GITHUB_STEP_SUMMARY
+          echo "Image: ${{ steps.image.outputs.tag }}" >> $GITHUB_STEP_SUMMARY

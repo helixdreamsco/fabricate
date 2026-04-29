@@ -209,7 +209,13 @@ export const MAKERS: Maker[] = [
   },
 ];
 
-export const SERVICE_FEE_GBP = 1.5;
+/** Service fee is £2 base + 10% of the printing subtotal — covers
+ *  Fabricate's platform overhead and scales with order size. */
+export const SERVICE_FEE_BASE_GBP = 2;
+export const SERVICE_FEE_PCT = 0.10;
+/** Floor on machine-time cost. A 2-minute print still costs the maker setup,
+ *  preheat, bed prep and slicing time — £3 reflects that. */
+export const MACHINE_TIME_MIN_GBP = 3;
 export const MARGIN_MULTIPLIER = 1.4;
 export const MACHINE_TIME_RATE_GBP_PER_HOUR = 2.4;
 

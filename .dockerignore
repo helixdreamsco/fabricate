@@ -1,0 +1,46 @@
+# Source-control + IDE
+.git
+.gitignore
+.github
+.vscode
+.idea
+*.swp
+
+# Local dev / generated
+node_modules
+.next
+.next/dev
+.next/cache
+out
+coverage
+
+# Local data + uploads — production uses Cloud Storage / volume mount
+prisma/dev.db
+prisma/dev.db-journal
+prisma/uploads
+
+# Local env files — secrets must come in as Cloud Run env vars
+.env
+.env.local
+.env.*.local
+
+# Python service venv (separate FastAPI service, not part of the Next.js image)
+api/.venv
+api/__pycache__
+**/__pycache__
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Build / lint reports
+*.log
+npm-debug.log*
+
+# Markdown/docs — keep code-relevant ones (legal/*.md is in src/content/, included)
+DEPLOYMENT.md
+GCP_SETUP.md
+LAUNCH_CHECKLIST.md
+README.md
+CLAUDE.md
+AGENTS.md

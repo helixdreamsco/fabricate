@@ -22,9 +22,9 @@ export default async function CommunityPage({ params }: Props) {
               id: true, name: true, email: true, image: true,
               makerProfile: {
                 select: {
-                  id: true, displayName: true, printerModel: true,
-                  postcode: true, hasAMS: true, freeCompletionPhoto: true,
-                  stripeOnboarded: true,
+                  id: true, displayName: true, postcode: true,
+                  freeCompletionPhoto: true, stripeOnboarded: true,
+                  printers: { orderBy: { priority: "asc" } },
                 },
               },
             },
@@ -47,17 +47,25 @@ export default async function CommunityPage({ params }: Props) {
   // who can actually take paid work right now.
   const communityMakers: CommunityMakerSummary[] = c.members
     .filter((m) => !!m.user.makerProfile)
-    .map((m) => ({
-      id: m.user.makerProfile!.id,
-      userId: m.userId,
-      displayName: m.user.makerProfile!.displayName,
-      printerModel: m.user.makerProfile!.printerModel,
-      postcode: m.user.makerProfile!.postcode,
-      hasAMS: m.user.makerProfile!.hasAMS,
-      freeCompletionPhoto: m.user.makerProfile!.freeCompletionPhoto,
-      stripeOnboarded: m.user.makerProfile!.stripeOnboarded,
-      role: m.role,
-    }))
+    .map((m) => {
+      const profile = m.user.makerProfile!;
+      const active = profile.printers.filter((p) => p.active);
+      const sorted = (active.length > 0 ? active : profile.printers)
+        .slice()
+        .sort((a, b) => a.priority - b.priority);
+      const primary = sorted[0] ?? null;
+      return {
+        id: profile.id,
+        userId: m.userId,
+        displayName: profile.displayName,
+        printerModel: primary?.printerModel ?? null,
+        postcode: profile.postcode,
+        hasAMS: primary?.hasAMS ?? false,
+        freeCompletionPhoto: profile.freeCompletionPhoto,
+        stripeOnboarded: profile.stripeOnboarded,
+        role: m.role,
+      };
+    })
     .sort((a, b) => Number(b.stripeOnboarded) - Number(a.stripeOnboarded));
 
   return (

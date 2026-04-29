@@ -32,12 +32,16 @@ type MyBid = {
 export function MakerBidPanel({
   jobId,
   quotedPricePence,
+  platformFeePence,
   myBid,
   onboarded,
   initialBookmark,
 }: {
   jobId: string;
   quotedPricePence: number;
+  /** Snapshot of the platform fee on the listed price. Bids must exceed
+   *  this so the platform's cut isn't eroded. */
+  platformFeePence: number;
   myBid: MyBid | null;
   onboarded: boolean;
   initialBookmark: "SAVED" | "HIDDEN" | null;
@@ -89,6 +93,18 @@ export function MakerBidPanel({
     const priceOfferPence = poundsToPence(parseFloat(pricePounds));
     if (!Number.isFinite(priceOfferPence) || priceOfferPence <= 0) {
       setErr("Enter a valid price");
+      return;
+    }
+    if (priceOfferPence <= platformFeePence) {
+      setErr(
+        `Bid must be at least ${formatGbp(platformFeePence + 1)} so the platform fee is preserved.`,
+      );
+      return;
+    }
+    if (priceOfferPence > quotedPricePence) {
+      setErr(
+        `Bid cannot exceed the creator's listed price (${formatGbp(quotedPricePence)}).`,
+      );
       return;
     }
     const eta = parseInt(etaHours, 10);
@@ -241,11 +257,12 @@ export function MakerBidPanel({
           <div className="grid grid-cols-2 gap-4 mb-3">
             <Field
               label="Your price (£)"
-              hint="What you'll do the job for. Creator can still pick a cheaper bid."
+              hint={`Range ${formatGbp(platformFeePence + 1)}–${formatGbp(quotedPricePence)}. You can erode your machine-time and material money below the listed price, but the platform fee must stay covered.`}
             >
               <input
                 type="number"
-                min={0.5}
+                min={(platformFeePence + 1) / 100}
+                max={quotedPricePence / 100}
                 step={0.5}
                 inputMode="decimal"
                 value={pricePounds}

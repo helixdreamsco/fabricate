@@ -8,6 +8,10 @@ import { StatusPill } from "@/components/jobs/StatusPill";
 import { JobTimeline } from "@/components/jobs/JobTimeline";
 import { JobChat } from "@/components/jobs/JobChat";
 import { TestModeBadge } from "@/components/jobs/TestModeBadge";
+import { TestStripCard, type TestStripInitiator } from "@/components/jobs/TestStripCard";
+import { TestStripOfferButton } from "@/components/jobs/TestStripOfferButton";
+import { JobReviewPanel } from "@/components/jobs/JobReviewPanel";
+import { DisputeCard } from "@/components/jobs/DisputeCard";
 import { serializeJobEvent, type SerializedJobMessage } from "@/lib/jobs";
 import { formatGbp } from "@/lib/money";
 import { paymentMode } from "@/lib/payments";
@@ -133,6 +137,27 @@ export default async function MakerJobPage({ params }: Params) {
               ) : null}
             </Card>
 
+            {(() => {
+              const initiator: TestStripInitiator | null = job.testStripPaid
+                ? "paid"
+                : job.testStripRequestedByCreatorAt
+                  ? "creator_requested"
+                  : job.testStripOfferedByMakerAt
+                    ? "maker_offered"
+                    : null;
+              return (
+                <div>
+                  <TestStripCard
+                    code={job.testStripCode}
+                    initiator={initiator}
+                    feePence={job.testStripFeePence}
+                    audience="maker"
+                  />
+                  {!initiator ? <TestStripOfferButton jobId={job.id} /> : null}
+                </div>
+              );
+            })()}
+
             <MakerControls
               jobId={job.id}
               status={job.status}
@@ -158,6 +183,22 @@ export default async function MakerJobPage({ params }: Params) {
               </div>
               <JobTimeline events={events.map(serializeJobEvent)} />
             </Card>
+
+            <DisputeCard
+              jobId={job.id}
+              jobStatus={job.status}
+              viewerId={session.user.id}
+              isCreator={false}
+              isMaker={true}
+            />
+
+            {job.status === "COMPLETED" ? (
+              <JobReviewPanel
+                jobId={job.id}
+                viewerId={session.user.id}
+                otherPartyName={job.creator.name ?? job.creator.email ?? "the creator"}
+              />
+            ) : null}
           </div>
 
           {/* Right: chat */}

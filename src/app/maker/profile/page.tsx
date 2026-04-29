@@ -9,8 +9,9 @@ function parseMaterials(s: string | null): MaterialKey[] {
   try {
     const v = JSON.parse(s);
     if (!Array.isArray(v)) return [];
-    return v.filter((m): m is MaterialKey =>
-      m === "PLA" || m === "PETG" || m === "ABS" || m === "TPU"
+    return v.filter(
+      (m): m is MaterialKey =>
+        m === "PLA" || m === "PETG" || m === "ABS" || m === "TPU",
     );
   } catch {
     return [];
@@ -22,6 +23,7 @@ export default async function MakerProfilePage() {
   if (!session?.user?.id) redirect("/account?callbackUrl=/maker/profile");
   const profile = await prisma.makerProfile.findUnique({
     where: { userId: session.user.id },
+    include: { printers: { orderBy: { priority: "asc" } } },
   });
   return (
     <div className="flex-1 bg-grid-none">
@@ -33,20 +35,44 @@ export default async function MakerProfilePage() {
           {profile ? "Edit your maker profile" : "Set up your maker profile"}
         </h1>
         <p className="text-sm font-light text-black/60 leading-relaxed mb-8 max-w-lg">
-          This is what creators see when they consider your bid. You can edit
-          it any time. To accept paid jobs you&rsquo;ll also need to onboard
-          for payouts &mdash; that&rsquo;s a separate step on the Payouts page.
+          This is what creators see when they consider your bid. List every
+          printer you&rsquo;d take jobs on — the top one wins auto-selection
+          when more than one of yours can fulfil a job. To accept paid jobs
+          you&rsquo;ll also need to onboard for payouts (separate step on
+          the Payouts page).
         </p>
         <ProfileForm
-          initial={profile ? {
-            displayName: profile.displayName,
-            bio: profile.bio ?? "",
-            postcode: profile.postcode ?? "",
-            hasAMS: profile.hasAMS,
-            printerModel: profile.printerModel ?? "",
-            materials: parseMaterials(profile.materials),
-            freeCompletionPhoto: profile.freeCompletionPhoto,
-          } : null}
+          initial={
+            profile
+              ? {
+                  displayName: profile.displayName,
+                  bio: profile.bio ?? "",
+                  postcode: profile.postcode ?? "",
+                  freeCompletionPhoto: profile.freeCompletionPhoto,
+                  printers:
+                    profile.printers.length > 0
+                      ? profile.printers.map((p) => ({
+                          id: p.id,
+                          displayName: p.displayName,
+                          printerModel: p.printerModel,
+                          hasAMS: p.hasAMS,
+                          materials: parseMaterials(p.materials),
+                          active: p.active,
+                          notes: p.notes ?? "",
+                        }))
+                      : [
+                          {
+                            displayName: "",
+                            printerModel: "",
+                            hasAMS: false,
+                            materials: [],
+                            active: true,
+                            notes: "",
+                          },
+                        ],
+                }
+              : null
+          }
         />
       </div>
     </div>

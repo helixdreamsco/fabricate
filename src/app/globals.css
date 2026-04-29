@@ -156,3 +156,84 @@ input[type="range"].thin::-moz-range-thumb {
   box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
   cursor: pointer;
 }
+
+/* Markdown-rendered legal documents (terms, privacy). Hand-tuned because
+   we don't pull in @tailwindcss/typography. */
+.legal-doc h1 {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0 0 1rem;
+}
+.legal-doc h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 2rem 0 0.5rem;
+  letter-spacing: -0.01em;
+}
+.legal-doc h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
+}
+.legal-doc p,
+.legal-doc li {
+  font-size: 15px;
+  line-height: 1.65;
+  font-weight: 300;
+  color: rgb(0 0 0 / 0.78);
+}
+.legal-doc p { margin: 0 0 1rem; }
+.legal-doc ul, .legal-doc ol { padding-left: 1.25rem; margin: 0 0 1rem; }
+.legal-doc li { margin-bottom: 0.25rem; }
+.legal-doc strong { font-weight: 600; color: #0a0a0a; }
+.legal-doc a {
+  color: #0a0a0a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.legal-doc blockquote {
+  border-left: 3px solid #f59e0b;
+  background: rgb(254 243 199 / 0.4);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-size: 14px;
+  color: rgb(0 0 0 / 0.75);
+}
+.legal-doc blockquote p { margin: 0; font-weight: 400; }
+.legal-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 13px;
+}
+.legal-doc th {
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: rgb(0 0 0 / 0.55);
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.08);
+}
+.legal-doc td {
+  padding: 0.5rem 0.5rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.04);
+  font-weight: 300;
+  vertical-align: top;
+}
+.legal-doc hr {
+  border: none;
+  border-top: 1px solid rgb(0 0 0 / 0.08);
+  margin: 1.5rem 0;
+}
+.legal-doc code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: rgb(0 0 0 / 0.04);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.25rem;
+}

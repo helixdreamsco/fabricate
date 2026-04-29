@@ -4,6 +4,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordJobEvent } from "@/lib/jobs";
 import { notifyBidPlaced } from "@/lib/notifications";
+import { isMakerVerified } from "@/lib/maker-verification";
+import { notify } from "@/lib/notify";
+import { selectBestPrinter } from "@/lib/printers";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,6 +35,12 @@ export async function POST(req: Request, { params }: Params) {
   if (!profile)
     return NextResponse.json({ error: "create a maker profile first" }, { status: 400 });
 
+  if (!(await isMakerVerified(profile.id)))
+    return NextResponse.json(
+      { error: "verification required: complete /maker/verification before bidding" },
+      { status: 403 },
+    );
+
   const job = await prisma.job.findUnique({ where: { id } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
   if (job.status !== "OPEN")
@@ -47,6 +56,46 @@ export async function POST(req: Request, { params }: Params) {
       { status: 400 }
     );
 
+  // Maker-bid floor. Bids must leave the platform's cut intact, so the
+  // bid must be strictly greater than the platformFeePence snapshotted at
+  // job creation. The maker can still erode their own machine-time and
+  // material costs — that's what's between this floor and the listed
+  // price.
+  if (parsed.data.priceOfferPence <= job.platformFeePence) {
+    return NextResponse.json(
+      {
+        error: `Bid (£${(parsed.data.priceOfferPence / 100).toFixed(2)}) must be at least £${((job.platformFeePence + 1) / 100).toFixed(2)} so the platform fee is preserved.`,
+      },
+      { status: 400 },
+    );
+  }
+  if (parsed.data.priceOfferPence > job.quotedPricePence) {
+    return NextResponse.json(
+      {
+        error: `Bid cannot exceed the creator's listed price (£${(job.quotedPricePence / 100).toFixed(2)}).`,
+      },
+      { status: 400 },
+    );
+  }
+
+  // Auto-select the maker's highest-priority active printer that can
+  // fulfil this job. The bid is rejected if no printer matches — keeps
+  // creators from accepting bids the maker can't actually print.
+  const printer = await selectBestPrinter({
+    makerId: profile.id,
+    jobMaterial: job.material,
+    isMultiMaterial: job.isMultiMaterial,
+  });
+  if (!printer) {
+    return NextResponse.json(
+      {
+        error:
+          "None of your active printers match this job's material/AMS requirements. Add or activate a printer that stocks this material in your maker profile.",
+      },
+      { status: 400 },
+    );
+  }
+
   const bid = await prisma.jobBid.upsert({
     where: { jobId_makerId: { jobId: job.id, makerId: profile.id } },
     update: {
@@ -54,6 +103,7 @@ export async function POST(req: Request, { params }: Params) {
       etaHours: parsed.data.etaHours,
       message: parsed.data.message ?? null,
       status: "PENDING",
+      printerId: printer.id,
     },
     create: {
       jobId: job.id,
@@ -61,6 +111,7 @@ export async function POST(req: Request, { params }: Params) {
       priceOfferPence: parsed.data.priceOfferPence,
       etaHours: parsed.data.etaHours,
       message: parsed.data.message ?? null,
+      printerId: printer.id,
     },
   });
 
@@ -91,6 +142,14 @@ export async function POST(req: Request, { params }: Params) {
     etaHours: parsed.data.etaHours,
     message: parsed.data.message ?? null,
     bidsCountAfter: bidsCount,
+  });
+
+  await notify({
+    recipientId: job.creatorId,
+    kind: "bid_placed",
+    body: `${profile.displayName} bid £${(parsed.data.priceOfferPence / 100).toFixed(2)} on ${job.fileName}.`,
+    link: `/jobs/${job.id}`,
+    data: { jobId: job.id, bidId: bid.id, priceOfferPence: parsed.data.priceOfferPence },
   });
 
   return NextResponse.json({ bid });

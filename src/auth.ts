@@ -17,8 +17,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     // On first sign-in, NextAuth passes the DB user; stash its id into the JWT
     // so we can resolve it cheaply on every request without hitting the DB.
-    async jwt({ token, user }) {
-      if (user?.id) token.id = user.id;
+    // Also stash the user's accepted terms/privacy versions so the proxy
+    // (Edge runtime, no DB access) can run the consent gate from the JWT
+    // alone. Refreshed via `useSession().update()` after acceptance.
+    async jwt({ token, user, trigger, session }) {
+      if (user?.id) {
+        token.id = user.id;
+        // The PrismaAdapter passes the full DB row at sign-in. Stash the
+        // accepted-version pointers so the proxy can read them without
+        // hitting the DB. This keeps the callback Edge-safe (no prisma).
+        const u = user as typeof user & {
+          acceptedTermsVersion?: number;
+          acceptedPrivacyVersion?: number;
+        };
+        token.acceptedTermsVersion = u.acceptedTermsVersion ?? 0;
+        token.acceptedPrivacyVersion = u.acceptedPrivacyVersion ?? 0;
+      }
+      // After acceptance, the client calls update({ ... }) which arrives
+      // here as `trigger === "update"` with the new versions in `session`.
+      // Merge them into the JWT without re-reading the DB.
+      if (trigger === "update" && session && typeof session === "object") {
+        const s = session as {
+          acceptedTermsVersion?: number;
+          acceptedPrivacyVersion?: number;
+        };
+        if (typeof s.acceptedTermsVersion === "number") {
+          token.acceptedTermsVersion = s.acceptedTermsVersion;
+        }
+        if (typeof s.acceptedPrivacyVersion === "number") {
+          token.acceptedPrivacyVersion = s.acceptedPrivacyVersion;
+        }
+      }
       return token;
     },
     async session({ session, token }) {
@@ -34,6 +63,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         if (u && session.user) session.user.id = u.id;
       }
+      // Expose consent versions on the session for the middleware gate to
+      // read without a DB roundtrip.
+      const s = session as typeof session & {
+        acceptedTermsVersion?: number;
+        acceptedPrivacyVersion?: number;
+      };
+      s.acceptedTermsVersion =
+        (token?.acceptedTermsVersion as number | undefined) ?? 0;
+      s.acceptedPrivacyVersion =
+        (token?.acceptedPrivacyVersion as number | undefined) ?? 0;
       return session;
     },
   },

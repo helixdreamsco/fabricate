@@ -1,19 +1,37 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { ChevronUp, ChevronDown, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PrinterModelSearch } from "@/components/maker/PrinterModelSearch";
 import { MATERIALS, type MaterialKey } from "@/lib/catalog";
 import { cn } from "@/lib/utils";
 
+type PrinterInput = {
+  id?: string;
+  displayName: string;
+  printerModel: string;
+  hasAMS: boolean;
+  materials: MaterialKey[];
+  active: boolean;
+  notes: string;
+};
+
 type Initial = {
   displayName: string;
   bio: string;
   postcode: string;
-  hasAMS: boolean;
-  printerModel: string;
-  materials: MaterialKey[];
   freeCompletionPhoto: boolean;
+  printers: PrinterInput[];
+};
+
+const EMPTY_PRINTER: PrinterInput = {
+  displayName: "",
+  printerModel: "",
+  hasAMS: false,
+  materials: [],
+  active: true,
+  notes: "",
 };
 
 export function ProfileForm({ initial }: { initial: Initial | null }) {
@@ -23,23 +41,51 @@ export function ProfileForm({ initial }: { initial: Initial | null }) {
       displayName: "",
       bio: "",
       postcode: "",
-      hasAMS: false,
-      printerModel: "",
-      materials: [],
       freeCompletionPhoto: false,
-    }
+      printers: [{ ...EMPTY_PRINTER }],
+    },
   );
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  function toggleMaterial(key: MaterialKey) {
+  const updatePrinter = (idx: number, patch: Partial<PrinterInput>) =>
     setForm((f) => ({
       ...f,
-      materials: f.materials.includes(key)
-        ? f.materials.filter((m) => m !== key)
-        : [...f.materials, key],
+      printers: f.printers.map((p, i) => (i === idx ? { ...p, ...patch } : p)),
     }));
-  }
+
+  const togglePrinterMaterial = (idx: number, key: MaterialKey) =>
+    setForm((f) => ({
+      ...f,
+      printers: f.printers.map((p, i) =>
+        i === idx
+          ? {
+              ...p,
+              materials: p.materials.includes(key)
+                ? p.materials.filter((m) => m !== key)
+                : [...p.materials, key],
+            }
+          : p,
+      ),
+    }));
+
+  const addPrinter = () =>
+    setForm((f) => ({ ...f, printers: [...f.printers, { ...EMPTY_PRINTER }] }));
+
+  const removePrinter = (idx: number) =>
+    setForm((f) => ({
+      ...f,
+      printers: f.printers.filter((_, i) => i !== idx),
+    }));
+
+  const movePrinter = (idx: number, dir: -1 | 1) =>
+    setForm((f) => {
+      const swap = idx + dir;
+      if (swap < 0 || swap >= f.printers.length) return f;
+      const next = [...f.printers];
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return { ...f, printers: next };
+    });
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -82,43 +128,18 @@ export function ProfileForm({ initial }: { initial: Initial | null }) {
           value={form.bio}
           onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
           className="bg-transparent w-full border border-black/15 rounded-lg p-3 text-sm font-light outline-none focus:border-black/50 transition-colors min-h-[80px]"
-          placeholder="A line about your printer setup, lead times, what you specialise in."
+          placeholder="A line about your setup, lead times, what you specialise in."
         />
       </Field>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <Field label="Postcode (London)">
-          <input
-            value={form.postcode}
-            onChange={(e) => setForm((f) => ({ ...f, postcode: e.target.value }))}
-            className="bg-transparent w-full border-b border-black/15 pb-1.5 text-base font-light outline-none focus:border-black/50 transition-colors"
-            placeholder="N1 7HQ"
-            maxLength={16}
-          />
-        </Field>
-        <Field label="Printer model">
-          <PrinterModelSearch
-            value={form.printerModel}
-            onChange={(v) => setForm((f) => ({ ...f, printerModel: v }))}
-            onAmsHint={(suggested) => {
-              if (suggested && !form.hasAMS) {
-                setForm((f) => ({ ...f, hasAMS: true }));
-              }
-            }}
-          />
-        </Field>
-      </div>
-
-      <label className="flex items-center gap-3 cursor-pointer select-none">
+      <Field label="Postcode (London)">
         <input
-          type="checkbox"
-          checked={form.hasAMS}
-          onChange={(e) => setForm((f) => ({ ...f, hasAMS: e.target.checked }))}
-          className="w-4 h-4"
+          value={form.postcode}
+          onChange={(e) => setForm((f) => ({ ...f, postcode: e.target.value }))}
+          className="bg-transparent w-full border-b border-black/15 pb-1.5 text-base font-light outline-none focus:border-black/50 transition-colors"
+          placeholder="N1 7HQ"
+          maxLength={16}
         />
-        <span className="font-mono text-[11px] uppercase tracking-[0.16em]">
-          AMS / multi-material capable
-        </span>
-      </label>
+      </Field>
 
       <label className="flex items-start gap-3 cursor-pointer select-none">
         <input
@@ -132,39 +153,154 @@ export function ProfileForm({ initial }: { initial: Initial | null }) {
             Offer completion photos free
           </span>
           <span className="block text-[12px] font-light text-black/55 mt-0.5 leading-snug">
-            When a creator pays extra to require a completion photo (£2),
-            the fee is waived if they pick your bid. Surfaces as a badge on
-            your bids.
+            When a creator pays extra to require a completion photo, the fee
+            is waived if they pick your bid. Surfaces as a badge on every
+            bid you place, regardless of which printer takes the job.
           </span>
         </span>
       </label>
 
-      <Field label="Materials I stock">
-        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/40 mb-2 -mt-1">
-          We use this to surface jobs you can actually fulfil first.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {MATERIALS.map((m) => {
-            const on = form.materials.includes(m.key);
-            return (
-              <button
-                type="button"
-                key={m.key}
-                onClick={() => toggleMaterial(m.key)}
-                className={cn(
-                  "px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-[0.16em] border transition-colors",
-                  on
-                    ? "bg-[#0a0a0a] text-white border-[#0a0a0a]"
-                    : "bg-white text-black/65 border-black/15 hover:border-black/40"
-                )}
-                aria-pressed={on}
-              >
-                {m.label}
-              </button>
-            );
-          })}
+      {/* Printers */}
+      <div className="space-y-3 pt-3 border-t border-black/[0.08]">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <div>
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/55 mb-1">
+              Your printers
+            </h2>
+            <p className="text-[12px] font-light text-black/55 leading-snug max-w-md">
+              List every printer you&rsquo;d take jobs on. Order them — the
+              top one wins auto-selection when a job can run on more than
+              one of yours. Drag the arrows to reorder.
+            </p>
+          </div>
         </div>
-      </Field>
+
+        {form.printers.map((p, idx) => (
+          <div
+            key={p.id ?? `new-${idx}`}
+            className="rounded-xl border border-black/[0.08] p-4 space-y-4"
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/55">
+                Priority {idx + 1}
+                {idx === 0 ? " · primary" : ""}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => movePrinter(idx, -1)}
+                  disabled={idx === 0}
+                  aria-label="Move up"
+                  className="p-1 rounded hover:bg-black/[0.04] disabled:opacity-30 transition-colors"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => movePrinter(idx, 1)}
+                  disabled={idx === form.printers.length - 1}
+                  aria-label="Move down"
+                  className="p-1 rounded hover:bg-black/[0.04] disabled:opacity-30 transition-colors"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {form.printers.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removePrinter(idx)}
+                    aria-label="Remove printer"
+                    className="p-1 rounded text-red-700 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <Field label="Nickname">
+              <input
+                required
+                value={p.displayName}
+                onChange={(e) => updatePrinter(idx, { displayName: e.target.value })}
+                placeholder="e.g. P1S workhorse"
+                className="bg-transparent w-full border-b border-black/15 pb-1.5 text-base font-light outline-none focus:border-black/50 transition-colors"
+                maxLength={80}
+              />
+            </Field>
+
+            <Field label="Printer model">
+              <PrinterModelSearch
+                value={p.printerModel}
+                onChange={(v) => updatePrinter(idx, { printerModel: v })}
+                onAmsHint={(suggested) => {
+                  if (suggested && !p.hasAMS) {
+                    updatePrinter(idx, { hasAMS: true });
+                  }
+                }}
+              />
+            </Field>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={p.hasAMS}
+                onChange={(e) => updatePrinter(idx, { hasAMS: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]">
+                AMS / multi-material capable
+              </span>
+            </label>
+
+            <Field label="Materials this printer stocks">
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/40 mb-2 -mt-1">
+                Leave all unticked to mean &ldquo;I&rsquo;ll print any material on this printer&rdquo;.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {MATERIALS.map((m) => {
+                  const on = p.materials.includes(m.key);
+                  return (
+                    <button
+                      type="button"
+                      key={m.key}
+                      onClick={() => togglePrinterMaterial(idx, m.key)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-[0.16em] border transition-colors",
+                        on
+                          ? "bg-[#0a0a0a] text-white border-[#0a0a0a]"
+                          : "bg-white text-black/65 border-black/15 hover:border-black/40",
+                      )}
+                      aria-pressed={on}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={p.active}
+                onChange={(e) => updatePrinter(idx, { active: e.target.checked })}
+                className="w-4 h-4"
+              />
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]">
+                Active — accepting jobs
+              </span>
+            </label>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={addPrinter}
+          className="inline-flex items-center gap-2 rounded-lg border border-dashed border-black/20 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-black/65 hover:border-black/45 hover:text-black transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" /> Add another printer
+        </button>
+      </div>
 
       {err ? <div className="text-sm text-red-600 font-light">{err}</div> : null}
 

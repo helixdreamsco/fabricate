@@ -9,6 +9,7 @@ import { StatusPill } from "@/components/jobs/StatusPill";
 import { TestModeBadge } from "@/components/jobs/TestModeBadge";
 import { paymentMode } from "@/lib/payments";
 import { formatGbp } from "@/lib/money";
+import { MakerEarningsCard } from "@/components/maker/MakerEarningsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -75,12 +76,21 @@ export default async function MakerDashboardPage() {
                 Browse market ({openMarketCount})
               </Button>
             </Link>
+            <Link href={`/makers/${profile.id}`}>
+              <Button size="md" variant="secondary">
+                Public profile
+              </Button>
+            </Link>
             <Link href="/maker/payouts">
               <Button size="md" variant="secondary">
                 {profile.stripeOnboarded ? "Payouts" : "Connect payouts"}
               </Button>
             </Link>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <MakerEarningsCard makerId={profile.id} />
         </div>
 
         {/* KPIs */}

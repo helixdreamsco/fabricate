@@ -33,6 +33,7 @@ export async function GET() {
     where: { NOT: { userId: session.user.id } },
     orderBy: { createdAt: "asc" },
     include: {
+      printers: { orderBy: { priority: "asc" } },
       user: {
         select: {
           memberships: {

@@ -1,10 +1,13 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Check, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PayBidModal } from "@/components/jobs/PayBidModal";
+import { MakerRatingBadge } from "@/components/jobs/MakerRatingBadge";
+import { VerifiedBadge } from "@/components/jobs/VerifiedBadge";
 import { formatGbp } from "@/lib/money";
 
 type SharedCommunity = {
@@ -31,6 +34,8 @@ type BidRow = {
     stripeOnboarded: boolean;
     freeCompletionPhoto: boolean;
     sharedCommunities: SharedCommunity[];
+    rating: { avg: number; count: number } | null;
+    verified: boolean;
   };
 };
 
@@ -114,7 +119,14 @@ export function CreatorBidPanel({
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="font-medium">{b.maker.displayName}</span>
+                    <Link
+                      href={`/makers/${b.maker.id}`}
+                      className="font-medium hover:underline"
+                    >
+                      {b.maker.displayName}
+                    </Link>
+                    {b.maker.verified ? <VerifiedBadge /> : null}
+                    <MakerRatingBadge rating={b.maker.rating} />
                     {b.maker.hasAMS ? (
                       <span className="font-mono text-[9px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-700">
                         AMS

@@ -55,8 +55,49 @@ export default auth((req) => {
     return NextResponse.redirect(signIn);
   }
 
+  // ── Stage 3: legal consent gate ─────────────────────────────────────
+  // Authed users must have the latest accepted versions of Terms and
+  // Privacy. Versions are stamped on the JWT at sign-in (and refreshed
+  // via useSession().update() after acceptance). Exempt paths: the
+  // accept page itself, the documents being read, account/sign-in, and
+  // the OAuth + acceptance APIs.
+  if (isAuthed) {
+    const isExempt = CONSENT_EXEMPT_PATHS.some(
+      (p) => path === p || path.startsWith(p + "/"),
+    );
+    if (!isExempt) {
+      const t = req.auth as
+        | { acceptedTermsVersion?: number; acceptedPrivacyVersion?: number }
+        | null;
+      const acceptedTerms = t?.acceptedTermsVersion ?? 0;
+      const acceptedPrivacy = t?.acceptedPrivacyVersion ?? 0;
+      if (
+        acceptedTerms < REQUIRED_TERMS_VERSION ||
+        acceptedPrivacy < REQUIRED_PRIVACY_VERSION
+      ) {
+        const url = new URL("/legal/accept", req.nextUrl.origin);
+        url.searchParams.set("next", path + req.nextUrl.search);
+        return NextResponse.redirect(url);
+      }
+    }
+  }
+
   return NextResponse.next();
 });
+
+// Mirror src/lib/legal.ts. Duplicated here because middleware runs in Edge
+// runtime and can't import the lib (which pulls in prisma).
+const REQUIRED_TERMS_VERSION = 1;
+const REQUIRED_PRIVACY_VERSION = 1;
+const CONSENT_EXEMPT_PATHS = [
+  "/legal/accept",
+  "/terms",
+  "/privacy",
+  "/acceptable-use",
+  "/account",
+  "/api/auth",
+  "/api/legal/accept",
+];
 
 export const config = {
   matcher: [
