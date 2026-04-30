@@ -42,7 +42,11 @@ permissions:
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GCP_REGION: ${{ secrets.GCP_REGION }}
+  # Cloud Run service region. Pinned to europe-west1 because europe-west2
+  # does not support Cloud Run direct domain mapping; we map the custom
+  # domain (fabricate.helixdreams.co) to this service. Cloud SQL stays
+  # in europe-west2 — cross-region adds ~5-10ms which is fine.
+  GCP_REGION: europe-west1
 
 jobs:
   deploy:
