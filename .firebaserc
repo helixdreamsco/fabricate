@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "helixdreamsco-cd2a2"
+  },
+  "targets": {
+    "helixdreamsco-cd2a2": {
+      "hosting": {
+        "fabricate-helixdreams": [
+          "fabricate-helixdreams"
+        ]
+      }
+    }
+  }
+}

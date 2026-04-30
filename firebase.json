@@ -1,0 +1,16 @@
+{
+  "hosting": {
+    "site": "fabricate-helixdreams",
+    "public": ".firebase-public",
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "fabricate-web",
+          "region": "europe-west2"
+        }
+      }
+    ]
+  }
+}
