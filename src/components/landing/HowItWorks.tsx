@@ -4,21 +4,21 @@ import { Card } from "@/components/ui/Card";
 const STEPS = [
   {
     idx: "01",
-    title: "We slice it, not you.",
-    body: "Drop an STL and our servers compute the real volume, material weight, and print time against each maker's printer profile. You see a real price — not an estimate.",
-    detail: "Server-side slicing · CuraEngine & PrusaSlicer profiles",
+    title: "Upload your idea.",
+    body: "Drop in a 3D file or share a sketch and we'll work out what it costs before you commit to anything. No software to install.",
+    detail: "Free price up front",
   },
   {
     idx: "02",
-    title: "Routed to a ready printer.",
-    body: "Your job goes straight to the nearest maker whose printer is already warm and bed-cleared. No acceptance step. No DMs. No chasing.",
-    detail: "Typical first-layer in minutes across the network",
+    title: "A nearby maker prints it.",
+    body: "Local makers in your city see your job. One picks it up, prints it on their machine, and lets you know when it's ready.",
+    detail: "Real people · printed near you",
   },
   {
     idx: "03",
-    title: "Collect or couriered.",
-    body: "Get notified the moment the print is off the bed. Collect from the maker, or opt for a bicycle courier where available.",
-    detail: "Pickup · free · wait varies with queue & distance",
+    title: "Collect & keep creating.",
+    body: "Swing by to grab it once it's done. Then come back with the next thing you want to make real.",
+    detail: "Local pickup · pay when accepted",
   },
 ];
 
@@ -34,19 +34,19 @@ export function HowItWorks() {
             How it works
           </MonoLabel>
           <h2 className="text-4xl md:text-5xl font-black tracking-tight max-w-2xl leading-[1.05]">
-            No chatting with makers.
+            Your idea, printed nearby.
             <br />
-            No manual accepting.
+            No printer to buy.
             <br />
-            <span className="text-black/45">Just printed.</span>
+            <span className="text-black/45">No software to learn.</span>
           </h2>
         </div>
         <div className="hidden md:flex flex-col items-end">
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/40">
-            From upload → in hand
+            From idea → in hand
           </div>
           <div className="font-mono text-4xl font-bold tabular-nums mt-1">
-            2 taps
+            3 steps
           </div>
         </div>
       </div>
