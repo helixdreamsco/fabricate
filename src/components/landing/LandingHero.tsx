@@ -6,6 +6,7 @@ import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { analyzeSTL } from "@/lib/stl";
 import { defaultPartColors, useOrder } from "@/lib/order-store";
+import { savePendingUpload } from "@/lib/order-storage";
 import { MATERIALS } from "@/lib/catalog";
 import { postAnalyze } from "@/lib/api";
 import { SlicerChip } from "@/components/shell/SlicerChip";
@@ -31,6 +32,11 @@ export function LandingHero() {
       ]);
       const partColors = defaultPartColors(analysis, MATERIALS[0].colors[0].hex);
       set({ file: f, analysis, serverAnalysis, partColors });
+      // Stash the file in IndexedDB so /configure can rehydrate after the
+      // sign-in round-trip wipes in-memory React state.
+      await savePendingUpload(f).catch((err) =>
+        console.warn("savePendingUpload failed:", err),
+      );
       router.push("/configure");
     } catch (e) {
       console.error(e);

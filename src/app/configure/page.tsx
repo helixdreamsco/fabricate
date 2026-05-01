@@ -5,29 +5,75 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ViewerShell } from "@/components/configure/ViewerShell";
 import { ConfigPanel } from "@/components/configure/ConfigPanel";
-import { useOrder } from "@/lib/order-store";
+import { defaultPartColors, useOrder } from "@/lib/order-store";
 import { MonoLabel } from "@/components/ui/MonoLabel";
+import { analyzeSTL } from "@/lib/stl";
+import {
+  clearPendingUpload,
+  loadPendingUpload,
+} from "@/lib/order-storage";
+import { MATERIALS } from "@/lib/catalog";
+import { postAnalyze } from "@/lib/api";
 
 export default function ConfigurePage() {
   const router = useRouter();
-  const { draft } = useOrder();
+  const { draft, set } = useOrder();
+  const [hydrating, setHydrating] = React.useState(true);
 
+  // Rehydrate from IndexedDB when in-memory state is empty (e.g. after the
+  // sign-in OAuth round-trip wiped React state). If nothing's stashed,
+  // bounce back to the homepage upload.
   React.useEffect(() => {
-    if (!draft.analysis) {
-      router.replace("/");
+    let cancelled = false;
+    if (draft.analysis) {
+      setHydrating(false);
+      return;
     }
-  }, [draft.analysis, router]);
+    (async () => {
+      const file = await loadPendingUpload().catch(() => null);
+      if (cancelled) return;
+      if (!file) {
+        router.replace("/");
+        return;
+      }
+      try {
+        const [analysis, serverAnalysis] = await Promise.all([
+          analyzeSTL(file),
+          postAnalyze(file).catch(() => null),
+        ]);
+        if (cancelled) return;
+        const partColors = defaultPartColors(
+          analysis,
+          MATERIALS[0].colors[0].hex,
+        );
+        set({ file, analysis, serverAnalysis, partColors });
+        await clearPendingUpload().catch(() => undefined);
+      } catch {
+        await clearPendingUpload().catch(() => undefined);
+        if (!cancelled) router.replace("/");
+        return;
+      }
+      if (!cancelled) setHydrating(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [draft.analysis, router, set]);
 
   if (!draft.analysis) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <MonoLabel size="md">No file loaded</MonoLabel>
-        <Link
-          href="/"
-          className="text-sm font-medium underline underline-offset-4"
-        >
-          ← Back to upload
-        </Link>
+        <MonoLabel size="md">
+          {hydrating ? "Loading your upload…" : "No file loaded"}
+        </MonoLabel>
+        {!hydrating ? (
+          <Link
+            href="/"
+            className="text-sm font-medium underline underline-offset-4"
+          >
+            ← Back to upload
+          </Link>
+        ) : null}
       </div>
     );
   }

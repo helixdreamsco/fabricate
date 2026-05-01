@@ -50,6 +50,8 @@ export default auth((req) => {
     path.startsWith("/maker/") ||
     path === "/communities" ||
     path.startsWith("/communities/") ||
+    path === "/configure" ||
+    path.startsWith("/configure/") ||
     (path.startsWith("/c/") && path.length > 3);
 
   if (needsAuth && !isAuthed) {
