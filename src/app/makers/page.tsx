@@ -296,7 +296,7 @@ const FAQ = [
   },
   {
     q: "How does pricing work?",
-    a: "We auto-estimate a fair price for each job (material + machine time + a margin). Creators set their own price at or above that floor. As a maker you can bid below the listed price to win on price — but never below the platform fee, so our cut is preserved while you eat into your machine-time and material margin.",
+    a: "We auto-estimate a fair price for each job (material + machine time + a margin). Creators set their own price at or above that floor. From there it's a conversation — makers respond with their own offers: match the listed price, sharpen it to win the job, or counter higher when the file's trickier than it looks. Creators see every offer side by side and pick the maker they want to print with. The platform fee stays fixed; everything else is between you and the creator.",
   },
   {
     q: "What if a print fails or there's a dispute?",
