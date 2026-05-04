@@ -5,7 +5,7 @@
 
 This policy lists what you can and can't do on Fabricate. It supplements the [Terms of Service](/terms) — agreeing to those means agreeing to this. Breach can result in account suspension, termination, forfeiture of pending payouts, and where required, reports to law enforcement.
 
-If you see something on the platform that breaches this policy, email **abuse@helixdreams.co** with a link to the job, file, or maker. Anonymous reports are accepted.
+If you see something on the platform that breaches this policy, email **support@helixdreams.co** with a link to the job, file, or maker. Anonymous reports are accepted.
 
 ---
 
@@ -93,7 +93,7 @@ We're a marketplace for makers and creators in good faith. Use your judgement; i
 ## 4. Files and copyright
 
 - You confirm at upload that you own the file or have a licence to use it for this print run.
-- Fabricate doesn't pre-screen uploaded files. We respond to good-faith takedown notices from rights holders at **abuse@helixdreams.co** under the UK's notice-and-takedown framework.
+- Fabricate doesn't pre-screen uploaded files. We respond to good-faith takedown notices from rights holders at **support@helixdreams.co** under the UK's notice-and-takedown framework.
 - If a maker prints a file in good faith and the file turns out to infringe, the dispute is between the rights holder and the creator who uploaded it — not the maker.
 
 ---
@@ -119,4 +119,4 @@ When this policy materially changes we'll bump the version number and update the
 
 ## 7. Contact
 
-Anything in this policy — questions, reports, takedown notices, or disputes about a removal — goes to **abuse@helixdreams.co**.
+Anything in this policy — questions, reports, takedown notices, or disputes about a removal — goes to **support@helixdreams.co**.
