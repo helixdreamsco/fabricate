@@ -15,16 +15,21 @@ import { getOnboardingStatus } from "@/lib/payments";
  * `sim_acct_*` id as complete.
  */
 export async function GET(req: Request) {
+  // req.url is the container's internal bind on Cloud Run; use the
+  // configured public origin so redirects land on the right host.
+  const base =
+    process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
+
   const session = await auth();
   if (!session?.user?.id) {
-    return NextResponse.redirect(new URL("/account", req.url));
+    return NextResponse.redirect(new URL("/account", base));
   }
 
   const profile = await prisma.makerProfile.findUnique({
     where: { userId: session.user.id },
   });
   if (!profile?.stripeAccountId) {
-    return NextResponse.redirect(new URL("/maker/payouts?onboarding=missing", req.url));
+    return NextResponse.redirect(new URL("/maker/payouts?onboarding=missing", base));
   }
 
   const state = await getOnboardingStatus(profile.stripeAccountId);
@@ -38,6 +43,6 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.redirect(
-    new URL(`/maker/payouts?onboarding=${state.status}`, req.url),
+    new URL(`/maker/payouts?onboarding=${state.status}`, base),
   );
 }

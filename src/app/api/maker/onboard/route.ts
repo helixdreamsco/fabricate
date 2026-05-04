@@ -28,7 +28,11 @@ export async function POST(req: Request) {
       { status: 400 },
     );
 
-  const origin = new URL(req.url).origin;
+  // On Cloud Run req.url reflects the container's internal bind
+  // (https://0.0.0.0:8080), so URLs derived from it send Stripe's redirect
+  // to a dead address. Prefer the configured public origin.
+  const origin =
+    process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
   const returnUrl = `${origin}/api/maker/onboard/return`;
   const refreshUrl = `${origin}/maker/payouts?onboarding=refresh`;
 
