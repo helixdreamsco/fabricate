@@ -658,7 +658,7 @@ export function ConfigPanel() {
           {/* Courier coverage panel — always visible when courier is the
               chosen delivery, so users can see who can actually ship and at
               what price before paying. */}
-          {draft.delivery === "courier" ? (
+          {draft.delivery === "courier" && draft.maker ? (
             <div className="mt-3">
               <CourierAvailability
                 pickup={{ lat: draft.maker.lat, lng: draft.maker.lng }}
@@ -688,32 +688,44 @@ export function ConfigPanel() {
             onClick={() => setShowMakerPicker(true)}
             className="w-full text-left px-4 py-3 rounded-xl border border-black/10 hover:border-black/30 bg-white flex items-center justify-between transition-colors"
           >
-            <div className="flex flex-col min-w-0">
-              <span className="text-sm font-medium truncate flex items-center gap-1.5">
-                {draft.maker.name}
-                {draft.maker.supportsMultiMaterial ? (
-                  <span
-                    className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#0a0a0a] bg-black/[0.04] px-1.5 py-0.5 rounded-full whitespace-nowrap"
-                    title="AMS / multi-material printer"
-                  >
-                    AMS
-                  </span>
-                ) : null}
-              </span>
-              <span className="text-[11px] font-light text-black/55 mt-0.5 truncate">
-                {draft.maker.printer} · {draft.maker.area} ·{" "}
-                {draft.maker.statusEta}
-              </span>
-            </div>
+            {draft.maker ? (
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium truncate flex items-center gap-1.5">
+                  {draft.maker.name}
+                  {draft.maker.supportsMultiMaterial ? (
+                    <span
+                      className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#0a0a0a] bg-black/[0.04] px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                      title="AMS / multi-material printer"
+                    >
+                      AMS
+                    </span>
+                  ) : null}
+                </span>
+                <span className="text-[11px] font-light text-black/55 mt-0.5 truncate">
+                  {draft.maker.printer} · {draft.maker.area} ·{" "}
+                  {draft.maker.statusEta}
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium">No maker prioritized</span>
+                <span className="text-[11px] font-light text-black/55 mt-0.5">
+                  Your job will go to the open market — any verified maker can bid.
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2 shrink-0">
-              <StatusDot
-                tone={draft.maker.available ? "ready" : "printing"}
-                pulse={draft.maker.available}
-              />
+              {draft.maker ? (
+                <StatusDot
+                  tone={draft.maker.available ? "ready" : "printing"}
+                  pulse={draft.maker.available}
+                />
+              ) : null}
               <ChevronDown className="w-4 h-4 text-black/40" />
             </div>
           </button>
           {draft.analysis?.isMultiMaterial &&
+          draft.maker &&
           !draft.maker.supportsMultiMaterial ? (
             <div className="mt-2 rounded-xl border border-[#f59e0b]/40 bg-[#f59e0b]/[0.08] px-3 py-2 flex items-start gap-2">
               <AlertTriangle className="w-3.5 h-3.5 text-[#b45309] mt-0.5 shrink-0" />

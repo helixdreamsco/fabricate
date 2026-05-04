@@ -2,7 +2,7 @@
 import * as React from "react";
 import type { MeshAnalysis } from "./stl";
 import type { MaterialKey, QualityKey, Maker } from "./catalog";
-import { MAKERS, MATERIALS } from "./catalog";
+import { MATERIALS } from "./catalog";
 import type { ServerAnalysis, ServerQuote } from "./api";
 
 export type CommunityContext = {
@@ -29,7 +29,10 @@ export type OrderDraft = {
   infill: number;
   quantity: number;
   delivery: "pickup" | "courier";
-  maker: Maker;
+  /** Prioritized maker, if the creator picked one on /configure. Null
+   *  unless explicitly selected — the static catalogue that used to
+   *  seed this is gone now that real makers come from /api/makers. */
+  maker: Maker | null;
   community: CommunityContext | null;
   /** User's geolocation — set from the home page's browser-geo prompt and
    *  reused on /configure for courier eligibility checks. */
@@ -50,7 +53,7 @@ const DEFAULT: OrderDraft = {
   infill: 20,
   quantity: 1,
   delivery: "pickup",
-  maker: MAKERS[0],
+  maker: null,
   community: null,
   userCoord: null,
   notes: "",

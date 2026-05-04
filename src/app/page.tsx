@@ -1,7 +1,5 @@
 import { LandingHero } from "@/components/landing/LandingHero";
 import { HowItWorks } from "@/components/landing/HowItWorks";
-import { NetworkStrip } from "@/components/landing/NetworkStrip";
-import { LiveFleet } from "@/components/landing/LiveFleet";
 import { Footer } from "@/components/landing/Footer";
 import { LoggedInHome } from "@/components/home/LoggedInHome";
 import { auth } from "@/auth";
@@ -63,9 +61,7 @@ export default async function Home() {
   return (
     <>
       <LandingHero />
-      <NetworkStrip />
       <HowItWorks />
-      <LiveFleet />
       <Footer />
     </>
   );

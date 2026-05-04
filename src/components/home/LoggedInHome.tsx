@@ -15,7 +15,7 @@ import {
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Button } from "@/components/ui/Button";
-import { MAKERS, MATERIALS, type Maker } from "@/lib/catalog";
+import { MATERIALS, type Maker } from "@/lib/catalog";
 import { cn, formatDistance, formatGBP } from "@/lib/utils";
 import { analyzeSTL } from "@/lib/stl";
 import { postAnalyze } from "@/lib/api";
@@ -98,11 +98,11 @@ export function LoggedInHome({
     ? communities.find((c) => c.id === scopeId) ?? null
     : null;
 
-  // The map + scoring still uses the static catalogue (MAKERS) — that's a
-  // separate migration. The community scope here just feeds discount /
-  // free-mode pricing into scoreMakers; it no longer filters by catalogue
-  // affiliation since the catalogue ↔ community link was retired.
-  const inScopeMakers: Maker[] = MAKERS;
+  // The static catalogue of fake makers was retired pre-launch — a
+  // marketplace can't ship with seeded fake names. Real makers will come
+  // from /api/makers once we wire the home page to the DB. Until then,
+  // an empty list correctly shows the "no makers yet" state.
+  const inScopeMakers: Maker[] = [];
 
   // Score + sort.
   const analysisLite = draft.analysis
@@ -157,7 +157,9 @@ export function LoggedInHome({
           return null;
         }),
       ]);
-      const chosen = selected ? MAKERS.find((m) => m.id === selected) : null;
+      // No static catalogue to pick from any more — prioritized maker is
+      // chosen via the bid flow on the job page, not at upload time.
+      const chosen = null;
       const community: CommunityContext | null = activeCommunity
         ? {
             id: activeCommunity.id,
@@ -675,14 +677,12 @@ function EmptyMakers({ scope }: { scope: string | null }) {
   return (
     <li className="p-10 text-center">
       <MonoLabel size="md" className="mb-2 block">
-        {scope
-          ? "No makers in this community yet"
-          : "No makers match your filters"}
+        {scope ? "No makers in this community yet" : "No makers signed up yet"}
       </MonoLabel>
       <p className="text-sm font-light text-black/55 max-w-sm mx-auto leading-relaxed">
         {scope
           ? "The community owner hasn't affiliated any makers. Ask them to add some in Settings."
-          : "Try another sort, or clear the \"Fits my part\" filter."}
+          : "Fabricate is brand new. Upload your file anyway — your job goes to the open market and any maker who joins can bid on it."}
       </p>
     </li>
   );

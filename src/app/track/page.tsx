@@ -72,7 +72,7 @@ export default function TrackPage() {
             </div>
             <p className="text-sm font-light text-black/60 max-w-xl leading-relaxed">
               {draft.analysis?.fileName} — {draft.material} ·{" "}
-              {draft.quantity}× · {draft.maker.name}
+              {draft.quantity}×{draft.maker ? ` · ${draft.maker.name}` : ""}
             </p>
             <div className="mt-4">
               <Link

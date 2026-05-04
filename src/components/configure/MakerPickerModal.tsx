@@ -12,7 +12,7 @@ import { Modal } from "@/components/ui/Modal";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Button } from "@/components/ui/Button";
-import { MAKERS, type Maker } from "@/lib/catalog";
+import { type Maker } from "@/lib/catalog";
 import { cn, formatDistance, formatGBP } from "@/lib/utils";
 import { useOrder } from "@/lib/order-store";
 import {
@@ -77,11 +77,11 @@ export function MakerPickerModal({
   // If a community is active on the draft, the modal honours it: only that
   // community's makers are considered. (No scope toggle inside the modal —
   // the scope choice lives on the upload screen.)
-  const inScopeMakers = React.useMemo(() => {
-    // Without communityMakers in the draft, we just show ALL makers — this
-    // is the same as the all-public view on the home page. (The modal has
-    // no access to per-community maker affiliations here.)
-    return MAKERS;
+  const inScopeMakers = React.useMemo<Maker[]>(() => {
+    // Static catalogue retired pre-launch. The "prioritize a maker"
+    // picker on /checkout now uses real /api/makers; this older modal
+    // surface shows empty state until it's migrated to the same API.
+    return [];
   }, []);
 
   const analysisLite = draft.analysis
@@ -193,7 +193,7 @@ export function MakerPickerModal({
                 <MakerRow
                   key={m.id}
                   m={m}
-                  selected={draft.maker.id === m.id}
+                  selected={draft.maker?.id === m.id}
                   preview={previewId === m.id}
                   hasAnalysis={!!draft.analysis}
                   onHover={() => setPreviewId(m.id)}
@@ -210,7 +210,7 @@ export function MakerPickerModal({
           <FleetMap
             makers={inScopeMakers}
             user={loc.kind === "granted" ? loc.coord : null}
-            selectedMakerId={previewId ?? draft.maker.id}
+            selectedMakerId={previewId ?? draft.maker?.id ?? null}
             onSelect={(id) => setPreviewId(id)}
           />
         </div>
@@ -218,7 +218,9 @@ export function MakerPickerModal({
 
       <div className="px-8 py-4 border-t border-black/[0.06] flex items-center justify-between gap-3">
         <MonoLabel size="sm">
-          Currently selected · {draft.maker.name}
+          {draft.maker
+            ? `Currently selected · ${draft.maker.name}`
+            : "No maker selected — your job will go to the open market"}
         </MonoLabel>
         <Button variant="secondary" size="md" onClick={onClose}>
           Done
