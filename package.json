@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && mkdir -p public && cp -f node_modules/occt-import-js/dist/occt-import-js.wasm public/occt-import-js.wasm",
     "deploy:start": "prisma db push --skip-generate --accept-data-loss && next start -p ${PORT:-3000}"
   },
   "dependencies": {
@@ -31,6 +31,7 @@
     "nanoid": "^5.1.9",
     "next": "16.2.4",
     "next-auth": "^5.0.0-beta.31",
+    "occt-import-js": "^0.0.23",
     "opentype.js": "^1.3.4",
     "prisma": "^6.19.3",
     "qrcode": "^1.5.4",

@@ -110,11 +110,11 @@ export default function ConfigurePage() {
         </div>
       </div>
 
-      {draft.analysis.format === "step" ? (
+      {draft.analysis.format === "step" && draft.analysis.volumeCm3 === 0 ? (
         <div className="border-b border-amber-500/30 bg-amber-500/[0.06] shrink-0">
           <div className="max-w-[1800px] mx-auto px-5 md:px-8 py-2.5 text-[12px] leading-snug text-amber-900 font-light">
-            <span className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold mr-2">STEP file</span>
-            The preview is a placeholder cube — your file is fine. STEP is a parametric CAD format the browser can&rsquo;t tessellate, so we forward it untouched to your maker, whose slicer (Bambu Studio, PrusaSlicer, Cura) handles it natively. You&rsquo;ll set the price manually on the next step since we can&rsquo;t auto-quote without volume.
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold mr-2">STEP fallback</span>
+            We couldn&rsquo;t tessellate this STEP file in the browser, so the preview is a placeholder cube. Your file is fine — we forward it untouched to your maker, whose slicer handles STEP natively. You&rsquo;ll set the price manually on the next step.
           </div>
         </div>
       ) : null}

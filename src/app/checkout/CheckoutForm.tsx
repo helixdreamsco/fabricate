@@ -74,7 +74,11 @@ export function CheckoutForm({
 
   if (!draft.analysis || !draft.file) return null;
 
-  const isStep = draft.analysis.format === "step";
+  // STEP files that tessellated successfully behave like STL/3MF (real
+  // volume → auto-quote). Treat as a placeholder only when tessellation
+  // fell back to the cube (volumeCm3 === 0).
+  const isStep =
+    draft.analysis.format === "step" && draft.analysis.volumeCm3 === 0;
 
   const quote = estimateQuote({
     volumeCm3: draft.analysis.volumeCm3,

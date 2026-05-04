@@ -117,6 +117,69 @@ function partsFromGroup(group: THREE.Object3D): MeshPart[] {
   return parts;
 }
 
+async function tessellateStep(buffer: ArrayBuffer): Promise<MeshPart[]> {
+  // Dynamic import keeps the ~7.6MB WASM out of the main bundle — only
+  // STEP uploads pay the cost. The wasm itself is served from /public so
+  // it's a same-origin fetch (postinstall copies it from node_modules).
+  const { default: occtFactory } = await import("occt-import-js");
+  const occt = await occtFactory({
+    locateFile: (path) => `/${path}`,
+  });
+  const result = occt.ReadStepFile(new Uint8Array(buffer), null);
+  if (!result.success || !Array.isArray(result.meshes)) {
+    throw new Error("OpenCASCADE rejected the STEP file");
+  }
+
+  const parts: MeshPart[] = [];
+  for (let i = 0; i < result.meshes.length; i++) {
+    const m = result.meshes[i];
+    const positionArray = m.attributes?.position?.array;
+    if (!positionArray || positionArray.length === 0) continue;
+
+    let geom = new THREE.BufferGeometry();
+    geom.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(Float32Array.from(positionArray), 3),
+    );
+    if (m.attributes?.normal?.array) {
+      geom.setAttribute(
+        "normal",
+        new THREE.Float32BufferAttribute(Float32Array.from(m.attributes.normal.array), 3),
+      );
+    }
+    if (m.index?.array) {
+      geom.setIndex(Array.from(m.index.array));
+    }
+    if (geom.index) geom = geom.toNonIndexed();
+    if (!m.attributes?.normal?.array) geom.computeVertexNormals();
+    geom.computeBoundingBox();
+    geom.computeBoundingSphere();
+
+    const triangleCount = Math.floor(geom.attributes.position.count / 3);
+    const volumeMm3 = computeVolumeMm3(geom);
+
+    let originalColorHex: string | null = null;
+    if (Array.isArray(m.color) && m.color.length >= 3) {
+      const [r, g, b] = m.color;
+      const toHex = (v: number) =>
+        Math.max(0, Math.min(255, Math.round(v * 255)))
+          .toString(16)
+          .padStart(2, "0");
+      originalColorHex = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    parts.push({
+      index: parts.length,
+      name: m.name?.trim() || `Part ${parts.length + 1}`,
+      geometry: geom,
+      triangleCount,
+      volumeCm3: volumeMm3 / 1000,
+      originalColorHex,
+    });
+  }
+  return parts;
+}
+
 async function loadParts(
   file: File,
 ): Promise<{ parts: MeshPart[]; format: MeshAnalysis["format"] }> {
@@ -163,27 +226,34 @@ async function loadParts(
   }
 
   if (ext === ".step" || ext === ".stp") {
-    // STEP is a parametric B-rep format — three.js can't tessellate it in
-    // the browser (would need OpenCASCADE WASM / occt-import-js, ~10 MB).
-    // We accept the upload, surface a placeholder cube so the rest of the
-    // configure UI doesn't crash, and route the file to the maker as-is —
-    // their slicer (Bambu Studio, PrusaSlicer, Cura) handles STEP natively.
-    const placeholder = new THREE.BoxGeometry(40, 40, 40);
-    placeholder.computeBoundingBox();
-    placeholder.computeVertexNormals();
-    return {
-      format: "step",
-      parts: [
-        {
-          index: 0,
-          name: "STEP",
-          geometry: placeholder,
-          triangleCount: 0,
-          volumeCm3: 0,
-          originalColorHex: null,
-        },
-      ],
-    };
+    // Try to tessellate via the lazy-loaded OpenCASCADE WASM. On success
+    // the user sees the real geometry and pricing auto-quotes from real
+    // volume; on failure we fall back to the placeholder cube + manual
+    // pricing path (the maker's slicer still gets the original STEP file
+    // either way, so the print itself is unaffected).
+    try {
+      const parts = await tessellateStep(buffer);
+      if (parts.length === 0) throw new Error("STEP produced no parts");
+      return { format: "step", parts };
+    } catch (err) {
+      console.warn("[stl] STEP tessellation failed, falling back to placeholder:", err);
+      const placeholder = new THREE.BoxGeometry(40, 40, 40);
+      placeholder.computeBoundingBox();
+      placeholder.computeVertexNormals();
+      return {
+        format: "step",
+        parts: [
+          {
+            index: 0,
+            name: "STEP",
+            geometry: placeholder,
+            triangleCount: 0,
+            volumeCm3: 0,
+            originalColorHex: null,
+          },
+        ],
+      };
+    }
   }
 
   throw new Error(`Unsupported mesh format: ${ext}`);

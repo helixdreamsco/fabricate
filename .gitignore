@@ -52,3 +52,6 @@ api/__pycache__/
 
 # OS
 Thumbs.db
+
+# vendored WASM — copied from node_modules by postinstall, never commit
+/public/occt-import-js.wasm
