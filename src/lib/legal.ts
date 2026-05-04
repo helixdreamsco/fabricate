@@ -11,7 +11,7 @@ import { prisma } from "./prisma";
  * change in your release notes).
  */
 export const TERMS_VERSION = 1;
-export const PRIVACY_VERSION = 1;
+export const PRIVACY_VERSION = 2;
 
 export type ConsentStatus = {
   needsTerms: boolean;

@@ -1,7 +1,7 @@
 # Fabricate Privacy Policy
 
-**Effective date:** 2026-04-29
-**Version:** 1
+**Effective date:** 2026-05-04
+**Version:** 2
 
 ---
 
@@ -9,7 +9,7 @@
 
 Fabricate is operated by **HELIXDREAMSCO LTD (Company Number 17158644)** of **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**. We are the data controller for the personal data described below. Contact: helixdreamsco@gmail.com.
 
-We are registered with the UK Information Commissioner's Office under registration **Z9999999**.
+We are registered with the UK Information Commissioner's Office under registration **ZC135824**.
 
 ## 2. What we collect
 
