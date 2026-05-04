@@ -1,7 +1,6 @@
 "use client";
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 export function ConsentForm({
@@ -17,7 +16,6 @@ export function ConsentForm({
   privacyVersion: number;
   redirectTo: string;
 }) {
-  const router = useRouter();
   const { update } = useSession();
   const [acceptTerms, setAcceptTerms] = React.useState(false);
   const [acceptPrivacy, setAcceptPrivacy] = React.useState(false);
@@ -48,13 +46,15 @@ export function ConsentForm({
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error ?? `failed (${res.status})`);
       }
-      // Refresh the JWT so the middleware sees the new accepted versions.
+      // Refresh the JWT so the middleware sees the new accepted versions,
+      // then hard-navigate so the browser ships the fresh cookie and the
+      // consent middleware re-evaluates from scratch. A soft router.replace
+      // here races the cookie write and lands on a blank page in Next 15.
       await update({
         acceptedTermsVersion: termsVersion,
         acceptedPrivacyVersion: privacyVersion,
       });
-      router.replace(redirectTo);
-      router.refresh();
+      window.location.replace(redirectTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setPending(false);
