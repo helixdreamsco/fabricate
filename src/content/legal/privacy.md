@@ -1,13 +1,13 @@
 # Fabricate Privacy Policy
 
 **Effective date:** 2026-05-04
-**Version:** 2
+**Version:** 3
 
 ---
 
 ## 1. Who we are
 
-Fabricate is operated by **HELIXDREAMSCO LTD (Company Number 17158644)** of **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**. We are the data controller for the personal data described below. Contact: helixdreamsco@gmail.com.
+Fabricate is operated by **HELIXDREAMSCO LTD (Company Number 17158644)** of **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**. We are the data controller for the personal data described below. Contact: privacy@helixdreams.co.
 
 We are registered with the UK Information Commissioner's Office under registration **ZC135824**.
 
@@ -74,7 +74,7 @@ Under UK GDPR you can ask us to:
 - object to processing based on legitimate interests;
 - withdraw any marketing consent at any time.
 
-Email helixdreamsco@gmail.com. We respond within one calendar month.
+Email privacy@helixdreams.co. We respond within one calendar month.
 
 You may complain to the Information Commissioner's Office at **ico.org.uk** or 0303 123 1113.
 
@@ -102,4 +102,4 @@ When this policy materially changes we'll bump the version number, publish the n
 
 ## 12. Contact
 
-helixdreamsco@gmail.com for any data-protection question, subject-access request, or complaint.
+privacy@helixdreams.co for any data-protection question, subject-access request, or complaint.

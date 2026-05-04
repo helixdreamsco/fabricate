@@ -1,7 +1,7 @@
 # Fabricate Terms of Service
 
-**Effective date:** 2026-04-29
-**Version:** 1
+**Effective date:** 2026-05-04
+**Version:** 2
 
 ---
 
@@ -9,7 +9,7 @@
 
 Fabricate is an online platform that **introduces** people who want a 3D-printed part ("Creators") to people who own a 3D printer and are willing to print one ("Makers"). Fabricate is not a manufacturer. We do not produce, inspect, deliver, or guarantee any printed part.
 
-Fabricate is operated by **HELIXDREAMSCO LTD (Company Number 17158644)** registered at **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**. Contact: helixdreamsco@gmail.com.
+Fabricate is operated by **HELIXDREAMSCO LTD (Company Number 17158644)** registered at **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**. Contact: support@helixdreams.co.
 
 By using the platform you accept these Terms and the [Privacy Policy](/privacy). If you do not accept them, you must not use the platform.
 
@@ -104,4 +104,4 @@ These Terms are governed by the laws of England and Wales. Each party submits to
 
 ## 15. Contact
 
-Questions, data-protection / GDPR queries, and disputes you can't resolve in-app: helixdreamsco@gmail.com.
+Questions, data-protection / GDPR queries, and disputes you can't resolve in-app: support@helixdreams.co.
