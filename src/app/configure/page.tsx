@@ -110,6 +110,15 @@ export default function ConfigurePage() {
         </div>
       </div>
 
+      {draft.analysis.format === "step" ? (
+        <div className="border-b border-amber-500/30 bg-amber-500/[0.06] shrink-0">
+          <div className="max-w-[1800px] mx-auto px-5 md:px-8 py-2.5 text-[12px] leading-snug text-amber-900 font-light">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold mr-2">STEP file</span>
+            The preview is a placeholder cube — your file is fine. STEP is a parametric CAD format the browser can&rsquo;t tessellate, so we forward it untouched to your maker, whose slicer (Bambu Studio, PrusaSlicer, Cura) handles it natively. You&rsquo;ll set the price manually on the next step since we can&rsquo;t auto-quote without volume.
+          </div>
+        </div>
+      ) : null}
+
       {/* Workbench: fills the remaining space inside the clamped page. The
           parent's bounded height + min-h-0 here lets each column be exactly
           the viewport height the parent has measured for the workbench. */}
