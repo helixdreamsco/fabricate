@@ -224,7 +224,7 @@ function renderStatus({
     return {
       label: "Not connected",
       heading: "Not connected",
-      body: "Stripe Express handles KYC, bank details, and payout schedules. You'll be redirected back here when complete.",
+      body: "Stripe Express handles KYC, bank details, and payout schedules. The onboarding flow will reference helixdreamsco — Fabricate's parent company. You'll be redirected back here when complete.",
       pillCls: "bg-black/[0.04] text-black/55 border-black/[0.08]",
       dotCls: "bg-black/30",
       ctaLabel: "Connect payouts",

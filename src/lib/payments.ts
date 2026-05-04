@@ -280,6 +280,10 @@ export async function createPaymentIntent(opts: {
       description: opts.description,
       receipt_email: opts.payerEmail,
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+      // Tags Fabricate charges so they're distinguishable from other
+      // helixdreamsco products (e.g. genome) sharing this Stripe account.
+      // Customer's bank statement shows "<platform_prefix>* FABRICATE".
+      statement_descriptor_suffix: "FABRICATE",
       metadata: opts.metadata,
     });
     return {
