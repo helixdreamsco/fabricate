@@ -13,6 +13,7 @@ import { MonoLabel } from "@/components/ui/MonoLabel";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { Button } from "@/components/ui/Button";
 import { type Maker } from "@/lib/catalog";
+import type { MakerProfileSummary } from "@/lib/maker-profile";
 import { cn, formatDistance, formatGBP } from "@/lib/utils";
 import { useOrder } from "@/lib/order-store";
 import {
@@ -74,15 +75,48 @@ export function MakerPickerModal({
   const referenceCoord: Coord =
     loc.kind === "granted" ? loc.coord : FALLBACK_CENTER;
 
-  // If a community is active on the draft, the modal honours it: only that
-  // community's makers are considered. (No scope toggle inside the modal —
-  // the scope choice lives on the upload screen.)
-  const inScopeMakers = React.useMemo<Maker[]>(() => {
-    // Static catalogue retired pre-launch. The "prioritize a maker"
-    // picker on /checkout now uses real /api/makers; this older modal
-    // surface shows empty state until it's migrated to the same API.
-    return [];
-  }, []);
+  const [realMakers, setRealMakers] = React.useState<MakerProfileSummary[]>([]);
+
+  // Pull real maker profiles from the DB whenever the modal opens. We
+  // don't pass includeSelf — the creator picking who to prioritize for
+  // their own job shouldn't see their own maker profile in the list.
+  React.useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void fetch("/api/makers")
+      .then((r) => (r.ok ? r.json() : { makers: [] }))
+      .then((j: { makers?: MakerProfileSummary[] }) => {
+        if (!cancelled) setRealMakers(j.makers ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  // Adapt MakerProfileSummary → Maker for the existing scoring/map UI.
+  // Distance/queue/rating fields are stubbed since we don't yet track
+  // those signals; lat/lng come from postcodes.io geocoding done
+  // server-side in /api/makers.
+  const inScopeMakers: Maker[] = React.useMemo(() => {
+    return realMakers.map((m): Maker => ({
+      id: m.id,
+      name: m.displayName,
+      area: m.postcode ? m.postcode.split(/\s+/)[0]?.toUpperCase() ?? "" : "",
+      postcode: m.postcode ?? "",
+      printer: m.printerModel ?? "Printer not specified",
+      statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
+      rating: 0,
+      lat: m.lat ?? 0,
+      lng: m.lng ?? 0,
+      available: m.stripeOnboarded,
+      materials: [],
+      buildVolumeMm: { x: 256, y: 256, z: 256 },
+      queueMins: 0,
+      machineRateGbpPerHour: 0,
+      supportsMultiMaterial: m.hasAMS,
+    }));
+  }, [realMakers]);
 
   const analysisLite = draft.analysis
     ? { volumeCm3: draft.analysis.volumeCm3, dimsMm: draft.analysis.dimsMm }
