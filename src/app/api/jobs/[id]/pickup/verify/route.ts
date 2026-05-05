@@ -143,7 +143,9 @@ export async function POST(req: Request, { params }: Params) {
     kind: "payout_released",
     body: transferError
       ? `Payout failed: ${transferError}`
-      : `Payout released to ${job.assignedMaker.displayName} (£${(payoutAmount / 100).toFixed(2)}, ${transferMode === "sim" ? "TEST MODE" : "live"}).`,
+      : transferMode === "sim"
+        ? `Payout released to ${job.assignedMaker.displayName} (£${(payoutAmount / 100).toFixed(2)}, TEST MODE).`
+        : `Payout released to ${job.assignedMaker.displayName} (£${(payoutAmount / 100).toFixed(2)}).`,
     data: { amountPence: payoutAmount, mode: transferMode, failed: !!transferError },
   });
 

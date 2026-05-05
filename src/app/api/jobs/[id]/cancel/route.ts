@@ -49,7 +49,7 @@ export async function POST(_req: Request, { params }: Params) {
       jobId: job.id,
       actor: "system",
       kind: "payment_refunded",
-      body: `Payment refunded (${r.mode === "sim" ? "TEST MODE" : "live"}).`,
+      body: r.mode === "sim" ? "Payment refunded (TEST MODE)." : "Payment refunded.",
       data: { refundId: r.refundId },
     });
   }

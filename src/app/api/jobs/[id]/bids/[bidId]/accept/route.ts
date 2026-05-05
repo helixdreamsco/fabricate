@@ -145,7 +145,7 @@ export async function POST(req: Request, { params }: Params) {
     jobId: job.id,
     actor: "system",
     kind: "payment_captured",
-    body: `Payment captured (${captured.mode === "sim" ? "TEST MODE" : "Stripe test"}).`,
+    body: captured.mode === "sim" ? "Payment captured (TEST MODE)." : "Payment captured.",
     data: {
       paymentId: result.payment.id,
       amountPence: bid.priceOfferPence,

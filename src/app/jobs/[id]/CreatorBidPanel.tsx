@@ -109,7 +109,7 @@ export function CreatorBidPanel({
           No bids yet — makers will see this job in the open market.
           <br />
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/40">
-            Hint: share the page with a maker friend to test the flow.
+            Bids usually start coming in once your job hits the open market.
           </span>
         </div>
       ) : (
