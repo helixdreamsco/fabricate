@@ -20,19 +20,20 @@ export async function getMakerVerification(makerId: string) {
 }
 
 /**
- * Approved == admin has signed off on the calibration print AND Stripe
- * Identity has returned `verified`. Either side missing blocks bidding.
+ * Verified == Stripe Identity returned `verified` (passport / driving
+ * licence + selfie liveness). The previous calibration-print gate was
+ * security theatre — anyone could upload a JPEG from the internet — so
+ * we dropped it. Bad actors get filtered organically via reviews and the
+ * admin reject path.
  */
 export async function isMakerVerified(makerId: string): Promise<boolean> {
   const v = await prisma.makerVerification.findUnique({
     where: { makerId },
-    select: { status: true, stripeIdentityStatus: true, reviewedAt: true },
+    select: { stripeIdentityStatus: true, status: true },
   });
-  return (
-    v?.status === "approved" &&
-    v.reviewedAt != null &&
-    v.stripeIdentityStatus === "verified"
-  );
+  // status=rejected lets an admin manually block a maker even if their
+  // Stripe Identity passed — keep that escape hatch.
+  return v?.stripeIdentityStatus === "verified" && v.status !== "rejected";
 }
 
 /**
@@ -118,8 +119,10 @@ export async function applyIdentityVerified(opts: {
     data: {
       stripeIdentityStatus: "verified",
       stripeIdentityVerifiedAt: new Date(),
-      // Bump overall status to id_verified if calibration not yet submitted.
-      status: v.status === "not_started" ? "id_verified" : v.status,
+      // Auto-approve on Identity success — calibration-print step retired.
+      // Preserve a prior `rejected` so an admin block can't be auto-undone.
+      status: v.status === "rejected" ? "rejected" : "approved",
+      reviewedAt: v.status === "rejected" ? v.reviewedAt : new Date(),
     },
   });
 }
