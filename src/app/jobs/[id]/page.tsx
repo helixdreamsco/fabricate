@@ -16,6 +16,7 @@ import { DisputeCard } from "@/components/jobs/DisputeCard";
 import { makerRatingAggregates } from "@/lib/reviews";
 import { serializeJobEvent, type SerializedJobMessage } from "@/lib/jobs";
 import { formatGbp } from "@/lib/money";
+import { renderMaterialPrefs } from "@/lib/printers";
 import { paymentMode } from "@/lib/payments";
 import { pickupQrPayload } from "@/lib/pickup";
 import { CreatorBidPanel } from "./CreatorBidPanel";
@@ -206,13 +207,29 @@ export default async function JobDetailPage({ params }: Params) {
                 Print spec
               </div>
               <dl className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-5 text-sm">
-                <Spec label="Material" value={job.material} />
+                <Spec
+                  label="Material"
+                  value={renderMaterialPrefs(
+                    job.material,
+                    job.materialAlternatives,
+                  )}
+                />
                 <Spec label="Infill" value={`${job.infillPct}%`} />
                 <Spec label="Quantity" value={String(job.quantity)} />
                 <Spec label="Multi-material" value={job.isMultiMaterial ? "Yes" : "No"} />
                 <Spec label="Estimated grams" value={job.estimatedGrams ? job.estimatedGrams.toFixed(0) + " g" : "—"} />
                 <Spec label="Quoted price" value={formatGbp(job.quotedPricePence)} />
               </dl>
+              {job.materialNotes ? (
+                <div className="mt-4 border-t border-black/[0.06] pt-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 mb-1">
+                    Filament requirements
+                  </div>
+                  <div className="text-sm font-light text-black/70 whitespace-pre-wrap">
+                    {job.materialNotes}
+                  </div>
+                </div>
+              ) : null}
               {job.notes ? (
                 <div className="mt-4 text-sm font-light text-black/70 whitespace-pre-wrap border-t border-black/[0.06] pt-3">
                   {job.notes}

@@ -70,3 +70,25 @@ export function summarisePrinter(p: Printer): PrinterSummary {
     active: p.active,
   };
 }
+
+/**
+ * Render the material preference list for a job's spec card. Takes the
+ * primary MaterialKey + the JSON-encoded alternatives column from the
+ * Job row and produces a human-readable string like "PLA · or PETG, ABS".
+ */
+export function renderMaterialPrefs(
+  primary: string,
+  alternativesJson: string | null | undefined,
+): string {
+  let alts: string[] = [];
+  try {
+    const parsed = JSON.parse(alternativesJson ?? "[]");
+    if (Array.isArray(parsed)) {
+      alts = parsed.filter((x): x is string => typeof x === "string");
+    }
+  } catch {
+    // ignore — show primary alone
+  }
+  if (alts.length === 0) return primary;
+  return `${primary} · or ${alts.join(", ")}`;
+}

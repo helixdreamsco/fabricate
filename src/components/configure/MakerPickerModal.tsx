@@ -447,7 +447,6 @@ function SortSelector({
 
 function LocationBadge({
   loc,
-  onRetry,
 }: {
   loc: LocState;
   onRetry: () => void;
@@ -472,16 +471,16 @@ function LocationBadge({
       </div>
     );
   }
+  // Browsers can't be re-asked for permission once they've remembered a
+  // block. Static badge — no retry button — to avoid the stuck-pending
+  // bug we fixed on the homepage badge.
   return (
-    <button
-      onClick={onRetry}
-      className="inline-flex items-center gap-2 h-7 pl-2 pr-3 rounded-full border border-black/10 bg-white hover:bg-black/[0.04] transition-colors"
-    >
+    <div className="inline-flex items-center gap-2 h-7 pl-2 pr-3 rounded-full border border-black/10 bg-white">
       <MapPin className="w-3 h-3 text-black/55" />
       <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/55">
         Location off · distances approx
       </span>
-    </button>
+    </div>
   );
 }
 

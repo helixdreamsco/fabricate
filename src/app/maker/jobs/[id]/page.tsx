@@ -14,6 +14,7 @@ import { JobReviewPanel } from "@/components/jobs/JobReviewPanel";
 import { DisputeCard } from "@/components/jobs/DisputeCard";
 import { serializeJobEvent, type SerializedJobMessage } from "@/lib/jobs";
 import { formatGbp } from "@/lib/money";
+import { renderMaterialPrefs } from "@/lib/printers";
 import { paymentMode } from "@/lib/payments";
 import { MakerControls } from "./MakerControls";
 
@@ -113,7 +114,13 @@ export default async function MakerJobPage({ params }: Params) {
                 Print spec
               </div>
               <dl className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-5 text-sm">
-                <Spec label="Material" value={job.material} />
+                <Spec
+                  label="Material"
+                  value={renderMaterialPrefs(
+                    job.material,
+                    job.materialAlternatives,
+                  )}
+                />
                 <Spec label="Infill" value={`${job.infillPct}%`} />
                 <Spec label="Quantity" value={String(job.quantity)} />
                 <Spec label="Multi-material" value={job.isMultiMaterial ? "Yes" : "No"} />
@@ -122,6 +129,16 @@ export default async function MakerJobPage({ params }: Params) {
                 <Spec label="Quoted price" value={formatGbp(job.quotedPricePence)} />
                 <Spec label="Your payout" value={formatGbp(myExpectedPayoutPence)} />
               </dl>
+              {job.materialNotes ? (
+                <div className="mt-4 border-t border-black/[0.06] pt-3">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 mb-1">
+                    Filament requirements
+                  </div>
+                  <div className="text-sm font-light text-black/70 whitespace-pre-wrap">
+                    {job.materialNotes}
+                  </div>
+                </div>
+              ) : null}
               {job.fileUrl ? (
                 <a
                   href={job.fileUrl}
