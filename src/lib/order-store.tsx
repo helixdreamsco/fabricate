@@ -25,6 +25,11 @@ export type OrderDraft = {
   material: MaterialKey;
   /** Hex per part — length matches `analysis.parts.length`. Single-mesh files have one entry. */
   partColors: string[];
+  /** When false (default), the creator doesn't care what colour the
+   *  maker prints in — saves a maker from being forced into a colour
+   *  they don't stock. Toggle on /configure if a specific colour is
+   *  required (e.g. matching an existing part). */
+  colorMatters: boolean;
   quality: QualityKey;
   infill: number;
   quantity: number;
@@ -49,6 +54,7 @@ const DEFAULT: OrderDraft = {
   quoteError: null,
   material: "PLA",
   partColors: [MATERIALS[0].colors[0].hex],
+  colorMatters: false,
   quality: "standard",
   infill: 20,
   quantity: 1,

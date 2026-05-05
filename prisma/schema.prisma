@@ -33,17 +33,17 @@ model User {
   memberships      CommunityMember[]
   messages         CommunityMessage[]
 
-  makerProfile    MakerProfile?
-  createdJobs     Job[]         @relation("JobCreator")
-  jobMessages     JobMessage[]  @relation("JobMessageAuthor")
-  paymentsAsPayer Payment[]     @relation("PaymentPayer")
-  authoredReviews Review[]      @relation("ReviewAuthor")
-  receivedReviews Review[]      @relation("ReviewSubject")
-  disputesFiled   Dispute[]     @relation("DisputeFiledBy")
-  disputeMessages DisputeMessage[]
-  notifications   Notification[] @relation("NotificationRecipient")
+  makerProfile      MakerProfile?
+  createdJobs       Job[]                   @relation("JobCreator")
+  jobMessages       JobMessage[]            @relation("JobMessageAuthor")
+  paymentsAsPayer   Payment[]               @relation("PaymentPayer")
+  authoredReviews   Review[]                @relation("ReviewAuthor")
+  receivedReviews   Review[]                @relation("ReviewSubject")
+  disputesFiled     Dispute[]               @relation("DisputeFiledBy")
+  disputeMessages   DisputeMessage[]
+  notifications     Notification[]          @relation("NotificationRecipient")
   notificationPrefs NotificationPreference?
-  legalConsents   LegalConsent[]
+  legalConsents     LegalConsent[]
 
   // Latest accepted version of each legal document. The gate at
   // src/lib/legal.ts compares these against the current TERMS_VERSION /
@@ -177,8 +177,8 @@ model MakerProfile {
   updatedAt DateTime @updatedAt
 
   bids            JobBid[]
-  assignedJobs    Job[]    @relation("JobAssignedMaker")
-  prioritizedJobs Job[]    @relation("JobPrioritizedMaker")
+  assignedJobs    Job[]              @relation("JobAssignedMaker")
+  prioritizedJobs Job[]              @relation("JobPrioritizedMaker")
   payouts         Payout[]
   bookmarks       MakerJobBookmark[]
   verification    MakerVerification?
@@ -222,11 +222,11 @@ model Printer {
 // (declined / not interested). Hidden jobs are filtered from the maker's
 // market view; saved jobs surface in a dedicated tab.
 model MakerJobBookmark {
-  id      String @id @default(cuid())
+  id      String       @id @default(cuid())
   makerId String
   maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
   jobId   String
-  job     Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job     Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
   // SAVED | HIDDEN
   status  String
 
@@ -251,6 +251,10 @@ model Job {
   material         String // MaterialKey from catalog
   // JSON-encoded array of hex strings, one per part for multi-material
   partColors       String  @default("[]")
+  // When false (default), the creator doesn't care about colour — the
+  // maker prints in any colour they have in stock. When true, partColors
+  // is the spec the creator wants and the maker should match.
+  colorMatters     Boolean @default(false)
   quality          String  @default("STANDARD")
   infillPct        Int     @default(20)
   quantity         Int     @default(1)
@@ -292,11 +296,11 @@ model Job {
   // typically after a print issue), or the maker preemptively offered one.
   // The maker's view shows the card unconditionally — they always have the
   // option to print a verification stencil.
-  testStripCode               String    @unique
-  testStripPaid               Boolean   @default(true)
-  testStripFeePence           Int       @default(0)
+  testStripCode                 String    @unique
+  testStripPaid                 Boolean   @default(true)
+  testStripFeePence             Int       @default(0)
   testStripRequestedByCreatorAt DateTime?
-  testStripOfferedByMakerAt   DateTime?
+  testStripOfferedByMakerAt     DateTime?
 
   // Pickup happens at the maker's location by default (see MakerProfile.postcode).
   // pickupPostcode is now an optional creator override — only set if they want
@@ -532,9 +536,9 @@ model Review {
 // Disputes — creator/maker disagreement on a job. Triggers refund flow.
 // ──────────────────────────────────────────────────────────────
 model Dispute {
-  id        String @id @default(cuid())
-  jobId     String
-  job       Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
   filedById String
   filedBy   User   @relation("DisputeFiledBy", fields: [filedById], references: [id], onDelete: Cascade)
@@ -542,7 +546,7 @@ model Dispute {
   reason String
 
   // OPEN | RESOLVED_CREATOR | RESOLVED_MAKER
-  status            String  @default("OPEN")
+  status            String    @default("OPEN")
   resolvedAt        DateTime?
   resolvedByAdminId String?
   resolutionNote    String?
@@ -575,7 +579,7 @@ model DisputeMessage {
 // Refunds — partial or full refund records. Driven by dispute resolution.
 // ──────────────────────────────────────────────────────────────
 model Refund {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   paymentId String
   payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
@@ -615,7 +619,7 @@ model MakerVerification {
   // Stripe Identity (gov ID + selfie liveness; address taken from doc when present).
   // We DON'T store the document image ourselves — Stripe holds it.
   stripeIdentityVerificationId String?   @unique
-  stripeIdentityStatus         String?   // mirrors Stripe: requires_input | processing | verified | canceled
+  stripeIdentityStatus         String? // mirrors Stripe: requires_input | processing | verified | canceled
   stripeIdentityVerifiedAt     DateTime?
 
   // Calibration print: photo uploaded by the maker, reviewed by admin.
@@ -634,9 +638,9 @@ model MakerVerification {
 // Notifications — generic in-app + email feed.
 // ──────────────────────────────────────────────────────────────
 model Notification {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   recipientId String
-  recipient   User     @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  recipient   User   @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   // bid_placed | bid_accepted | message_received | status_change |
   // pickup_minted | dispute_filed | dispute_resolved | refund_issued |

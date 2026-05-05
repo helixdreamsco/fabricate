@@ -141,6 +141,7 @@ export function CheckoutForm({
         fileSizeBytes: up.fileSizeBytes ?? draft.file.size,
         material: draft.material,
         partColors: draft.partColors,
+        colorMatters: draft.colorMatters,
         quality: draft.quality,
         infillPct: draft.infill,
         quantity: draft.quantity,

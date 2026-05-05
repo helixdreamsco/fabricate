@@ -408,13 +408,23 @@ export function ConfigPanel() {
           <section className="border-b border-black/[0.06]">
             <SectionHeader
               label="Colours"
-              summary={`${draft.analysis.parts.length} parts`}
-              detail="Multi-material"
+              summary={
+                draft.colorMatters
+                  ? `${draft.analysis.parts.length} parts`
+                  : "Maker chooses"
+              }
+              detail={draft.colorMatters ? "Multi-material" : "Any colour OK"}
               open={openColor}
               onToggle={() => setOpenColor((v) => !v)}
             />
             {openColor ? (
               <div className="px-6 pb-6">
+            <ColorMattersToggle
+              value={draft.colorMatters}
+              onChange={(v) => set({ colorMatters: v })}
+            />
+            {!draft.colorMatters ? null : (
+            <>
             <div className="flex flex-col gap-3">
               {draft.analysis.parts.map((part, i) => {
                 const current = draft.partColors[i] ?? "#0a0a0a";
@@ -478,6 +488,8 @@ export function ConfigPanel() {
                 Apply first to all →
               </button>
             </div>
+            </>
+            )}
               </div>
             ) : null}
           </section>
@@ -486,16 +498,28 @@ export function ConfigPanel() {
             <SectionHeader
               label="Colour"
               summary={
-                material.colors.find(
-                  (c) => c.hex === (draft.partColors[0] ?? ""),
-                )?.name ?? "Custom"
+                draft.colorMatters
+                  ? material.colors.find(
+                      (c) => c.hex === (draft.partColors[0] ?? ""),
+                    )?.name ?? "Custom"
+                  : "Maker chooses"
               }
-              swatch={draft.partColors[0] ?? material.colors[0].hex}
+              detail={draft.colorMatters ? undefined : "Any colour OK"}
+              swatch={
+                draft.colorMatters
+                  ? draft.partColors[0] ?? material.colors[0].hex
+                  : undefined
+              }
               open={openColor}
               onToggle={() => setOpenColor((v) => !v)}
             />
             {openColor ? (
               <div className="px-6 pb-6">
+            <ColorMattersToggle
+              value={draft.colorMatters}
+              onChange={(v) => set({ colorMatters: v })}
+            />
+            {!draft.colorMatters ? null : (
             <div className="flex flex-wrap gap-2.5">
               {material.colors.map((c) => {
                 const active = c.hex === (draft.partColors[0] ?? "");
@@ -516,6 +540,7 @@ export function ConfigPanel() {
                 );
               })}
             </div>
+            )}
               </div>
             ) : null}
           </section>
@@ -900,6 +925,35 @@ function Row({
         ) : null}
       </div>
       <span className="text-black">{value}</span>
+    </div>
+  );
+}
+
+function ColorMattersToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="mb-4 rounded-xl border border-black/[0.08] bg-black/[0.02] p-3">
+      <label className="flex items-start gap-3 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={value}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-4 h-4 mt-0.5 shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium">Colour matters</div>
+          <div className="text-[12px] font-light text-black/55 mt-0.5 leading-snug">
+            {value
+              ? "Pick the exact colour(s) you want — your maker will match."
+              : "Maker prints in any colour they have in stock. More makers can take the job and you can save on a bespoke filament order."}
+          </div>
+        </div>
+      </label>
     </div>
   );
 }
