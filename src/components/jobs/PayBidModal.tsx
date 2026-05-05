@@ -142,9 +142,11 @@ export function PayBidModal({
               released to the maker.
             </span>
           </div>
-          <div className="mt-2 font-mono text-[9px] uppercase tracking-[0.18em] text-amber-700">
-            Stripe test mode · use card 4242 4242 4242 4242, any future date, any CVC
-          </div>
+          {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith("pk_test_") ? (
+            <div className="mt-2 font-mono text-[9px] uppercase tracking-[0.18em] text-amber-700">
+              Stripe test mode · use card 4242 4242 4242 4242, any future date, any CVC
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
