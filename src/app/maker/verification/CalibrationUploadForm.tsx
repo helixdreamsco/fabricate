@@ -48,22 +48,36 @@ export function CalibrationUploadForm({
     }
   };
 
+  const [uploading, setUploading] = React.useState(false);
+  const fileInputId = "calibration-file";
+
   return (
     <form onSubmit={onSubmit} className="space-y-3">
       <input
+        id={fileInputId}
         type="file"
         accept="image/*"
+        className="sr-only"
         onChange={async (e) => {
           const f = e.target.files?.[0];
           if (!f) return;
+          setError(null);
+          setUploading(true);
           try {
             await upload(f);
           } catch (err) {
             setError(err instanceof Error ? err.message : "upload failed");
+          } finally {
+            setUploading(false);
           }
         }}
-        className="text-sm font-light"
       />
+      <label
+        htmlFor={fileInputId}
+        className="inline-flex items-center cursor-pointer rounded-lg border border-black/[0.15] bg-white text-[#0a0a0a] px-4 py-2 font-mono text-[11px] uppercase tracking-[0.18em] hover:bg-black/[0.04] transition-colors"
+      >
+        {uploading ? "Uploading…" : url ? "Replace photo" : "Choose photo"}
+      </label>
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -77,7 +91,7 @@ export function CalibrationUploadForm({
       <button
         type="submit"
         disabled={!url || pending}
-        className="rounded-lg border border-black/[0.15] bg-black text-white px-4 py-2 font-mono text-[11px] uppercase tracking-[0.18em] disabled:opacity-50"
+        className="block rounded-lg border border-black/[0.15] bg-black text-white px-4 py-2 font-mono text-[11px] uppercase tracking-[0.18em] disabled:opacity-50"
       >
         {pending
           ? "Submitting…"
