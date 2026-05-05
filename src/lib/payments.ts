@@ -79,6 +79,17 @@ export async function createConnectedAccount(opts: {
       type: "express",
       email: opts.email,
       country: "GB",
+      // Pre-filling these tells Stripe's Express onboarding what we already
+      // know about the maker so they don't get asked redundant questions
+      // (industry, what they sell, business website). Defaults assume the
+      // maker is a UK sole trader / individual — registered companies can
+      // change business_type after the fact in the Stripe dashboard.
+      business_type: "individual",
+      business_profile: {
+        mcc: "7338", // Quick Copy, Reproduction & Blueprinting — closest MCC for 3D-print services
+        product_description: "3D printing services via the Fabricate marketplace",
+        url: process.env.APP_URL ?? "https://fabricate.helixdreams.co",
+      },
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
