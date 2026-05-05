@@ -3,6 +3,7 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   UploadCloud,
   MapPin,
@@ -32,6 +33,7 @@ import {
   type MakerScore,
   type SortKey,
 } from "@/lib/maker-filters";
+import type { MakerProfileSummary } from "@/lib/maker-profile";
 
 const FleetMap = dynamic(
   () => import("./FleetMap").then((m) => m.FleetMap),
@@ -63,6 +65,8 @@ export function LoggedInHome({
 }) {
   const router = useRouter();
   const { draft, set } = useOrder();
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ?? null;
   const fileInput = React.useRef<HTMLInputElement>(null);
   const [loc, setLoc] = React.useState<LocState>({ kind: "pending" });
   const [selected, setSelected] = React.useState<string | null>(null);
@@ -72,6 +76,28 @@ export function LoggedInHome({
   const [scopeId, setScopeId] = React.useState<string | null>(null); // community id or null for "all"
   const [sortKey, setSortKey] = React.useState<SortKey>("nearest");
   const [showFitting, setShowFitting] = React.useState(false); // filter: only show compat
+  const [realMakers, setRealMakers] = React.useState<MakerProfileSummary[]>([]);
+  const [makersLoading, setMakersLoading] = React.useState(true);
+
+  // Pull real maker profiles from the DB. includeSelf=true so a maker
+  // viewing the homepage sees their own listing — they're a member of
+  // the marketplace just like anyone else.
+  React.useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/makers?includeSelf=true")
+      .then((r) => (r.ok ? r.json() : { makers: [] }))
+      .then((j: { makers?: MakerProfileSummary[] }) => {
+        if (cancelled) return;
+        setRealMakers(j.makers ?? []);
+        setMakersLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setMakersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Geolocate on mount. Persist to the order draft so /configure can use it
   // for courier-availability checks without re-prompting the user.
@@ -239,7 +265,9 @@ export function LoggedInHome({
         </button>
         <div className="ml-auto">
           <MonoLabel size="sm">
-            {visible.length} of {inScopeMakers.length} shown
+            {makersLoading
+              ? "Loading…"
+              : `${realMakers.length} ${realMakers.length === 1 ? "maker" : "makers"}`}
             {activeCommunity && activeCommunity.priorityQueue
               ? " · priority queue"
               : ""}
@@ -324,19 +352,18 @@ export function LoggedInHome({
               </MonoLabel>
             </div>
             <ol className="flex-1 overflow-y-auto divide-y divide-black/[0.06]">
-              {visible.length === 0 ? (
+              {makersLoading ? (
+                <li className="p-10 text-center">
+                  <MonoLabel size="md" className="block">Loading makers…</MonoLabel>
+                </li>
+              ) : realMakers.length === 0 ? (
                 <EmptyMakers scope={activeCommunity?.name ?? null} />
               ) : (
-                visible.map((m) => (
-                  <MakerRow
+                realMakers.map((m) => (
+                  <RealMakerRow
                     key={m.id}
                     m={m}
-                    selected={selected === m.id}
-                    community={activeCommunity}
-                    hasAnalysis={!!draft.analysis}
-                    onHover={() => setSelected(m.id)}
-                    onLeave={() => setSelected(null)}
-                    onClick={() => setSelected(m.id)}
+                    isSelf={currentUserId === m.userId}
                   />
                 ))
               )}
@@ -666,6 +693,69 @@ function MakerRow({
         {incompatibilityReason ? (
           <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[#b45309]">
             {incompatibilityReason}
+          </div>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function RealMakerRow({
+  m,
+  isSelf,
+}: {
+  m: MakerProfileSummary;
+  isSelf: boolean;
+}) {
+  const outwardCode = m.postcode
+    ? m.postcode.split(/\s+/)[0]?.toUpperCase() ?? null
+    : null;
+  return (
+    <li className="px-5 py-4 flex items-start gap-4 hover:bg-black/[0.02] transition-colors">
+      <StatusDot
+        tone={m.stripeOnboarded ? "ready" : "printing"}
+        pulse={m.stripeOnboarded}
+        className="mt-1.5"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-sm font-bold truncate flex items-center gap-1.5">
+            <Link
+              href={`/makers/${m.id}`}
+              className="hover:underline underline-offset-2"
+            >
+              {m.displayName}
+            </Link>
+            {m.hasAMS ? (
+              <span
+                className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#0a0a0a] bg-black/[0.04] px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                title="AMS / multi-material printer"
+              >
+                AMS
+              </span>
+            ) : null}
+            {isSelf ? (
+              <span
+                className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#7c3aed] bg-[#7c3aed]/[0.08] px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                title="This is your own maker profile"
+              >
+                You
+              </span>
+            ) : null}
+          </span>
+          {outwardCode ? (
+            <span className="font-mono text-[11px] tabular-nums text-black/55 whitespace-nowrap">
+              {outwardCode}
+            </span>
+          ) : null}
+        </div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.15em] text-black/50 truncate mt-0.5">
+          {m.printerModel ?? "Printer not specified"}
+          {m.materials.length > 0 ? ` · ${m.materials.join("/")}` : ""}
+        </div>
+        {!m.stripeOnboarded ? (
+          <div className="mt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[#b45309]">
+            Payouts not yet connected
           </div>
         ) : null}
       </div>

@@ -14,10 +14,16 @@ import { summarize, type SharedCommunity } from "@/lib/maker-profile";
  * Excludes the caller's own profile so creators can't accidentally
  * prioritize themselves.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user?.id)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  // The /checkout picker excludes self by default (creators shouldn't be
+  // able to prioritize their own maker profile). The homepage list passes
+  // includeSelf=true so a maker viewing their own marketplace sees their
+  // own listing alongside everyone else.
+  const includeSelf = new URL(req.url).searchParams.get("includeSelf") === "true";
 
   // Communities the caller belongs to. Empty list = no community boost.
   const myMemberships = await prisma.communityMember.findMany({
@@ -26,11 +32,11 @@ export async function GET() {
   });
   const myCommunityIds = myMemberships.map((m) => m.communityId);
 
-  // Pull all makers (excluding self) and the memberships of each maker's
-  // user for any of my communities. Single round-trip via Prisma's nested
-  // select.
+  // Pull all makers (excluding self by default) and the memberships of
+  // each maker's user for any of my communities. Single round-trip via
+  // Prisma's nested select.
   const profiles = await prisma.makerProfile.findMany({
-    where: { NOT: { userId: session.user.id } },
+    where: includeSelf ? {} : { NOT: { userId: session.user.id } },
     orderBy: { createdAt: "asc" },
     include: {
       printers: { orderBy: { priority: "asc" } },
