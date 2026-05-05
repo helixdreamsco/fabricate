@@ -30,8 +30,6 @@ If your needs are commercial — including small-batch resale, custom-shop fulfi
 
 If we determine, on reasonable evidence, that an account is being used commercially in breach of this clause, we may immediately suspend or close the account, withhold pending payouts, and seek recovery of any platform fees that the breach circumvented. We will not impose pre-set "liquidated damages" — instead, we reserve the right to pursue actual losses through the courts where appropriate.
 
-<!-- DRAFTING NOTE: liquidated damages clause considered and rejected. Post-Cavendish v Makdessi [2015] UKSC 67, fixed-sum penalties for non-genuine pre-estimates of loss risk being struck out. Account termination + actual-losses recovery is more enforceable. Solicitor may want to revisit. -->
-
 ## 3. Eligibility and verification
 
 You must be **18 or older** and able to enter into a binding contract under the laws of England and Wales. By using the platform you confirm both.
@@ -110,8 +108,6 @@ You acknowledge that **the possession, supply, manufacture, import, or transfer 
 
 You consent to the disclosures above as a condition of using the platform.
 
-<!-- DRAFTING NOTE: Border Security, Asylum and Immigration Act 2025 — section reference needs solicitor verification. The Act is real and includes provisions on 3D-printable firearm templates, but the precise section number / wording should be checked before relying on this clause in a public-facing document. -->
-
 **(b) Items that require regulatory approval we cannot verify.** Including but not limited to:
 
 - **Personal protective equipment (PPE)** — helmets, harnesses, fall protection, eye protection, respirators or filter components, gloves rated for chemical / cut / fire protection. PPE supplied to consumers must comply with the **Personal Protective Equipment (Enforcement) Regulations 2018** and carry UKCA / CE marking. Fabricate cannot verify either.
@@ -144,8 +140,6 @@ You further acknowledge — and this is relevant to any payment-card chargeback 
 **You may cancel a job at no charge while the job status is "Open" (no bid accepted).** Once a bid is accepted and printing has started, cancellation is at the Maker's discretion and may be subject to a deduction for filament and machine time already consumed, which Fabricate will assess via the dispute tool if the parties cannot agree.
 
 By posting a job and accepting a Maker's bid, **you expressly request that the Maker begin production before the end of any cancellation period that might otherwise apply**, and you accept that this waives your statutory cancellation rights from that point onward.
-
-<!-- DRAFTING NOTE: Reg 28(2) requires the trader to notify the consumer that they are losing the right and obtain express request before performance. We do this in the bid-accept UI; that disclosure must be tested for prominence by the solicitor. The "Bespoke" categorisation is the standard ground used by 3D-print platforms (e.g. Shapeways, Treatstock) to defeat chargebacks; Stripe accepts it as a legitimate non-cancellation basis. -->
 
 ## 9. Payments, escrow, deemed acceptance, and refunds
 
@@ -193,8 +187,6 @@ To the maximum extent permitted by law, Fabricate is not liable for:
 - loss of business, profit, opportunity, goodwill, anticipated savings, or data;
 - any indirect or consequential loss;
 - breach by Stripe, Resend, or any other third-party processor we rely on, except to the extent caused by our own negligence.
-
-<!-- DRAFTING NOTE: scaling the cap to "the amount actually paid through the platform for the transaction" rather than just a fixed £100 is intended to address fairness concerns under CRA 2015 §62 and UCTA 1977 §11 (reasonableness). Solicitor may want to revisit whether the £100 floor is appropriate or whether a higher floor / different formula better resists challenge. -->
 
 ## 12. Indemnity
 
@@ -252,14 +244,3 @@ Where a non-binding alternative dispute-resolution route is available — e.g. v
 - General queries and support: **support@helixdreams.co**
 - Privacy / GDPR / subject access: **privacy@helixdreams.co**
 - Disputes you can't resolve in-app: **support@helixdreams.co**
-
----
-
-<!-- DRAFTING NOTE FOR SOLICITOR REVIEW:
-- BSAIA 2025 section reference (clause 7(a)) — verify exact section + wording
-- Reg 28(2) prominence requirement (clause 8) — confirm bid-accept UI satisfies "express request" + notification
-- Liability cap (clause 11) — confirm scaled formula resists CRA s62 fairness challenge
-- Maker file-hygiene 24h rule (clause 6) — consider whether a stronger contractual indemnity makes sense
-- Deemed acceptance 14-day window (clause 9) — confirm Stripe Connect can hold escrow ≥14 days reliably (current testing shows yes; Stripe documentation confirms platform-balance funds can sit indefinitely)
-- Personal use only (clause 2) — consider whether to reference Companies Act 2006 §1162 "small companies" exception or simply rely on the contractual prohibition
--->
