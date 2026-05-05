@@ -47,6 +47,8 @@ type LocState =
   | { kind: "pending" }
   | { kind: "granted"; coord: Coord }
   | { kind: "denied" }
+  | { kind: "unavailable" }
+  | { kind: "timeout" }
   | { kind: "unsupported" };
 
 export type CommunityForScope = CommunityContext & {
@@ -112,8 +114,16 @@ export function LoggedInHome({
         setLoc({ kind: "granted", coord });
         set({ userCoord: coord });
       },
-      () => setLoc({ kind: "denied" }),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+      (err) => {
+        // Distinguish PERMISSION_DENIED (1) from POSITION_UNAVAILABLE (2,
+        // e.g. macOS Location Services off for the browser, no Wi-Fi
+        // triangulation) and TIMEOUT (3). The badge shows different help
+        // copy per case so the user can fix the actual problem.
+        if (err.code === 1) setLoc({ kind: "denied" });
+        else if (err.code === 3) setLoc({ kind: "timeout" });
+        else setLoc({ kind: "unavailable" });
+      },
+      { enableHighAccuracy: false, timeout: 20000, maximumAge: 60000 },
     );
   }, [set]);
 
@@ -833,9 +843,18 @@ function LocationBadge({
       </div>
     );
   }
-  // Denied / unsupported. We can't programmatically re-prompt once the
-  // browser has remembered a "block" decision, so don't try — show a
-  // help popover with the manual re-enable steps instead.
+  // Each error case wants slightly different guidance. We can't
+  // programmatically re-prompt for permission once a browser has
+  // remembered a "block" decision; the other failure modes need
+  // OS-level or network-side fixes the user has to do themselves.
+  const label =
+    loc.kind === "denied"
+      ? "Location off"
+      : loc.kind === "timeout"
+        ? "Location timed out"
+        : loc.kind === "unavailable"
+          ? "Location unavailable"
+          : "Location unsupported";
   return (
     <div className="relative inline-flex">
       <button
@@ -845,30 +864,64 @@ function LocationBadge({
       >
         <MapPin className="w-3 h-3 text-black/55" />
         <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/55">
-          {loc.kind === "denied" ? "Location off" : "Location unavailable"}
+          {label}
           <span className="text-black/30 ml-2">· tap for help</span>
         </span>
       </button>
       {showHelp ? (
         <div className="absolute right-0 top-9 z-[1100] w-72 rounded-xl border border-black/10 bg-white shadow-lg p-4 text-[12px] font-light leading-relaxed">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold text-black/55 mb-2">
-            Re-enable location
+            {loc.kind === "denied"
+              ? "Re-enable location"
+              : loc.kind === "timeout"
+                ? "Couldn't get a fix"
+                : "Location not available"}
           </div>
-          <p className="text-black/70 mb-2">
-            Browsers don&rsquo;t let us re-ask once you&rsquo;ve blocked
-            permission for a site. To switch it back on:
-          </p>
-          <ol className="list-decimal pl-4 text-black/65 space-y-1">
-            <li>Click the lock icon in the URL bar.</li>
-            <li>
-              <strong>Site settings</strong> →{" "}
-              <strong>Location</strong> → <strong>Allow</strong>.
-            </li>
-            <li>Reload this page.</li>
-          </ol>
+          {loc.kind === "denied" ? (
+            <>
+              <p className="text-black/70 mb-2">
+                Browsers don&rsquo;t let us re-ask once you&rsquo;ve
+                blocked permission. To switch it back on:
+              </p>
+              <ol className="list-decimal pl-4 text-black/65 space-y-1">
+                <li>Click the lock icon in the URL bar.</li>
+                <li>
+                  <strong>Site settings</strong> →{" "}
+                  <strong>Location</strong> → <strong>Allow</strong>.
+                </li>
+                <li>Reload this page.</li>
+              </ol>
+            </>
+          ) : loc.kind === "timeout" ? (
+            <p className="text-black/70 mb-2">
+              The browser took too long to find your position. Reload
+              the page or check your network. On desktop without GPS
+              this can fail intermittently — a Wi-Fi connection
+              usually fixes it.
+            </p>
+          ) : (
+            <>
+              <p className="text-black/70 mb-2">
+                The browser says permission is on, but your operating
+                system can&rsquo;t produce a position. On macOS:
+              </p>
+              <ol className="list-decimal pl-4 text-black/65 space-y-1">
+                <li>
+                  System Settings →{" "}
+                  <strong>Privacy &amp; Security</strong> →{" "}
+                  <strong>Location Services</strong>.
+                </li>
+                <li>
+                  Make sure Location Services is on AND your browser
+                  (Chrome / Safari / Edge) is in the allowed list.
+                </li>
+                <li>Reload this page.</li>
+              </ol>
+            </>
+          )}
           <p className="mt-3 text-[11px] text-black/45">
-            Without it, the marketplace still works — distances and the
-            map just won&rsquo;t centre on you.
+            Without location the marketplace still works — distances
+            and the map just won&rsquo;t centre on you.
           </p>
         </div>
       ) : null}
