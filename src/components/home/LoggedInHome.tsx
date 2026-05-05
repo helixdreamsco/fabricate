@@ -850,7 +850,7 @@ function LocationBadge({
         </span>
       </button>
       {showHelp ? (
-        <div className="absolute right-0 top-9 z-30 w-72 rounded-xl border border-black/10 bg-white shadow-lg p-4 text-[12px] font-light leading-relaxed">
+        <div className="absolute right-0 top-9 z-[1100] w-72 rounded-xl border border-black/10 bg-white shadow-lg p-4 text-[12px] font-light leading-relaxed">
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold text-black/55 mb-2">
             Re-enable location
           </div>
