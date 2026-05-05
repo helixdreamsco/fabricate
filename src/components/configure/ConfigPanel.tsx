@@ -341,63 +341,53 @@ export function ConfigPanel() {
         <section className="border-b border-black/[0.06]">
           <SectionHeader
             label="Material"
-            summary={material.label}
-            detail={material.tagline}
+            summary={
+              draft.materialAlternatives.length > 0
+                ? `${material.label} +${draft.materialAlternatives.length}`
+                : material.label
+            }
+            detail={
+              draft.materialAlternatives.length > 0
+                ? "Ranked preferences"
+                : material.tagline
+            }
             open={openMaterial}
             onToggle={() => setOpenMaterial((v) => !v)}
           />
           {openMaterial ? (
-            <div className="px-6 pb-6">
-              <MonoLabel size="sm" className="mb-3 block">
-                {material.densityGPerCm3.toFixed(2)} g/cm³ ·{" "}
+            <div className="px-6 pb-6 space-y-4">
+              <MonoLabel size="sm" className="block">
+                Pricing uses your top pick: {material.densityGPerCm3.toFixed(2)} g/cm³ ·{" "}
                 {formatGBP(material.pricePerGramGbp)}/g
               </MonoLabel>
-          <div className="grid grid-cols-2 gap-2">
-            {MATERIALS.map((m) => {
-              const active = m.key === draft.material;
-              return (
-                <button
-                  key={m.key}
-                  onClick={() => onMaterial(m.key)}
-                  className={cn(
-                    "text-left px-4 py-3.5 rounded-xl border transition-all relative",
-                    active
-                      ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
-                      : "border-black/10 hover:border-black/30 bg-white",
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono uppercase text-[13px] tracking-[0.12em] font-bold">
-                      {m.label}
-                    </span>
-                    {active ? (
-                      <Check className="w-3.5 h-3.5" strokeWidth={3} />
-                    ) : null}
-                  </div>
-                  <span
-                    className={cn(
-                      "block text-[11px] font-light mt-1.5 leading-snug",
-                      active ? "text-white/70" : "text-black/55",
-                    )}
-                  >
-                    {m.tagline}
+              <MaterialPriorityList
+                primary={draft.material}
+                alternatives={draft.materialAlternatives}
+                onPrimaryChange={onMaterial}
+                onAlternativesChange={(alts) =>
+                  set({ materialAlternatives: alts })
+                }
+              />
+              <div>
+                <MonoLabel size="sm" className="block mb-2">
+                  Specific filament requirements{" "}
+                  <span className="!text-black/35 normal-case tracking-normal font-light">
+                    (optional)
                   </span>
-                  {m.badge ? (
-                    <span
-                      className={cn(
-                        "inline-block mt-2 px-2 py-0.5 rounded-full font-mono text-[8px] uppercase tracking-[0.18em]",
-                        active
-                          ? "bg-white/15 text-white"
-                          : "bg-black/[0.04] text-black/55",
-                      )}
-                    >
-                      {m.badge}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
+                </MonoLabel>
+                <textarea
+                  value={draft.materialNotes}
+                  onChange={(e) =>
+                    set({ materialNotes: e.target.value.slice(0, 500) })
+                  }
+                  placeholder="e.g. Matte finish; Bambu PLA Basic in any earth tone; avoid recycled."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg border border-black/[0.10] bg-white text-sm font-light placeholder:text-black/35 focus:border-black/40 focus:outline-none resize-y"
+                />
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/35 mt-1 text-right">
+                  {draft.materialNotes.length}/500
+                </div>
+              </div>
             </div>
           ) : null}
         </section>
@@ -925,6 +915,129 @@ function Row({
         ) : null}
       </div>
       <span className="text-black">{value}</span>
+    </div>
+  );
+}
+
+function MaterialPriorityList({
+  primary,
+  alternatives,
+  onPrimaryChange,
+  onAlternativesChange,
+}: {
+  primary: MaterialKey;
+  alternatives: MaterialKey[];
+  /** Called when the top-of-list (primary) item changes — wraps the
+   *  partColors-seeding side effect. */
+  onPrimaryChange: (key: MaterialKey) => void;
+  onAlternativesChange: (next: MaterialKey[]) => void;
+}) {
+  const list: MaterialKey[] = [primary, ...alternatives];
+
+  const apply = (next: MaterialKey[]) => {
+    if (next.length === 0) return;
+    if (next[0] !== primary) onPrimaryChange(next[0]);
+    onAlternativesChange(next.slice(1));
+  };
+
+  const move = (from: number, to: number) => {
+    if (to < 0 || to >= list.length) return;
+    const next = list.slice();
+    [next[from], next[to]] = [next[to], next[from]];
+    apply(next);
+  };
+
+  const remove = (i: number) => {
+    if (list.length <= 1) return;
+    apply(list.filter((_, idx) => idx !== i));
+  };
+
+  const add = (key: MaterialKey) => {
+    if (list.includes(key) || list.length >= 10) return;
+    apply([...list, key]);
+  };
+
+  const available = MATERIALS.filter(
+    (m) => !list.includes(m.key as MaterialKey),
+  );
+
+  return (
+    <div className="space-y-2">
+      {list.map((key, i) => {
+        const m = MATERIALS.find((x) => x.key === key);
+        if (!m) return null;
+        const isFirst = i === 0;
+        const isLast = i === list.length - 1;
+        return (
+          <div
+            key={`${key}-${i}`}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-black/[0.10] bg-white"
+          >
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/45 w-5 text-right">
+              {i + 1}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold flex items-center gap-2">
+                {m.label}
+                {isFirst ? (
+                  <span className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#7c3aed] bg-[#7c3aed]/[0.08] px-1.5 py-0.5 rounded-full">
+                    Top pick
+                  </span>
+                ) : null}
+              </div>
+              <div className="text-[11px] font-light text-black/55 truncate">
+                {m.tagline}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => move(i, i - 1)}
+              disabled={isFirst}
+              aria-label="Move up"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-black/55 hover:text-black hover:bg-black/[0.04] disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => move(i, i + 1)}
+              disabled={isLast}
+              aria-label="Move down"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-black/55 hover:text-black hover:bg-black/[0.04] disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              disabled={list.length <= 1}
+              aria-label="Remove"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-black/55 hover:text-red-600 hover:bg-red-50 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+            >
+              ×
+            </button>
+          </div>
+        );
+      })}
+      {available.length > 0 && list.length < 10 ? (
+        <div className="pt-1">
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/45 mb-2">
+            Add a fallback material
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {available.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => add(m.key as MaterialKey)}
+                className="px-3 py-1.5 rounded-full border border-dashed border-black/15 hover:border-black/40 hover:bg-black/[0.02] transition-colors font-mono text-[11px] uppercase tracking-[0.12em]"
+              >
+                + {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

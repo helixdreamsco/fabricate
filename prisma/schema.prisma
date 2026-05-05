@@ -248,7 +248,15 @@ model Job {
   fileName         String
   fileUrl          String? // path under /uploads/<id>.<ext> for now (swap to S3 before scale)
   fileSizeBytes    Int     @default(0)
-  material         String // MaterialKey from catalog
+  material         String // MaterialKey from catalog (primary pick)
+  // JSON array of additional MaterialKey strings the creator will also
+  // accept, in priority order. Maker bid is allowed if their printer
+  // stocks `material` OR any of these. Empty = no alternatives.
+  materialAlternatives String  @default("[]")
+  // Free-text creator notes about specific filament/brand/finish
+  // preferences ("Prefer matte; Bambu PLA Basic any colour"). Up to
+  // 500 chars. Visible to bidders.
+  materialNotes        String?
   // JSON-encoded array of hex strings, one per part for multi-material
   partColors       String  @default("[]")
   // When false (default), the creator doesn't care about colour — the

@@ -23,6 +23,11 @@ export type OrderDraft = {
   quoteStatus: "idle" | "verifying" | "verified" | "error";
   quoteError: string | null;
   material: MaterialKey;
+  /** Up to 9 alternative materials in priority order (after `material`).
+   *  Maker can win the bid if their printer stocks any one of them. */
+  materialAlternatives: MaterialKey[];
+  /** Free-text "specific filament requirements" (brand, finish, etc.). */
+  materialNotes: string;
   /** Hex per part — length matches `analysis.parts.length`. Single-mesh files have one entry. */
   partColors: string[];
   /** When false (default), the creator doesn't care what colour the
@@ -53,6 +58,8 @@ const DEFAULT: OrderDraft = {
   quoteStatus: "idle",
   quoteError: null,
   material: "PLA",
+  materialAlternatives: [],
+  materialNotes: "",
   partColors: [MATERIALS[0].colors[0].hex],
   colorMatters: false,
   quality: "standard",

@@ -24,16 +24,21 @@ export function parsePrinterMaterials(raw: string | null | undefined): string[] 
  */
 export async function selectBestPrinter(opts: {
   makerId: string;
+  /** Primary preferred material. */
   jobMaterial: string;
+  /** Optional ordered list of acceptable alternatives — any match works. */
+  jobMaterialAlternatives?: string[];
   isMultiMaterial: boolean;
 }): Promise<Printer | null> {
+  const acceptable = [opts.jobMaterial, ...(opts.jobMaterialAlternatives ?? [])];
   const printers = await prisma.printer.findMany({
     where: { makerId: opts.makerId, active: true },
     orderBy: { priority: "asc" },
   });
   for (const p of printers) {
     const mats = parsePrinterMaterials(p.materials);
-    const hasMat = mats.length === 0 || mats.includes(opts.jobMaterial);
+    const hasMat =
+      mats.length === 0 || mats.some((m) => acceptable.includes(m));
     const amsOk = !opts.isMultiMaterial || p.hasAMS;
     if (hasMat && amsOk) return p;
   }

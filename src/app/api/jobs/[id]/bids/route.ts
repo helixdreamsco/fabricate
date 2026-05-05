@@ -81,9 +81,23 @@ export async function POST(req: Request, { params }: Params) {
   // Auto-select the maker's highest-priority active printer that can
   // fulfil this job. The bid is rejected if no printer matches — keeps
   // creators from accepting bids the maker can't actually print.
+  // Parse the JSON-encoded list of alternative materials the creator
+  // ranked. Maker can win the bid if any printer matches any of them.
+  let jobMaterialAlternatives: string[] = [];
+  try {
+    const parsed = JSON.parse(job.materialAlternatives ?? "[]");
+    if (Array.isArray(parsed)) {
+      jobMaterialAlternatives = parsed.filter(
+        (x): x is string => typeof x === "string",
+      );
+    }
+  } catch {
+    // bad JSON, just treat as no alternatives
+  }
   const printer = await selectBestPrinter({
     makerId: profile.id,
     jobMaterial: job.material,
+    jobMaterialAlternatives,
     isMultiMaterial: job.isMultiMaterial,
   });
   if (!printer) {

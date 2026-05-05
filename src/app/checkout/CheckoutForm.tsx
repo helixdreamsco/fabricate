@@ -140,6 +140,8 @@ export function CheckoutForm({
         fileUrl: up.fileUrl,
         fileSizeBytes: up.fileSizeBytes ?? draft.file.size,
         material: draft.material,
+        materialAlternatives: draft.materialAlternatives,
+        materialNotes: draft.materialNotes || null,
         partColors: draft.partColors,
         colorMatters: draft.colorMatters,
         quality: draft.quality,
