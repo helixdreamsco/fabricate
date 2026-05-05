@@ -93,6 +93,28 @@ export default async function MakerDashboardPage() {
           <MakerEarningsCard makerId={profile.id} />
         </div>
 
+        {profile.stripeOnboarded && earnedPence > 0 ? (
+          <div className="mb-5 rounded-xl border border-black/[0.08] bg-black/[0.02] px-5 py-3 text-[12px] font-light text-black/65 leading-snug">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold text-black/55 mr-2">
+              How payouts work
+            </span>
+            We release your share into your Stripe Connect balance the moment a
+            pickup is verified. Stripe then pays it out to your bank on its
+            own schedule — typically a 7-day rolling delay for the first ~90
+            days as a new account, then 2&ndash;3 days automatic. Your live
+            balance and bank arrival dates are visible on the{" "}
+            <a
+              href="https://connect.stripe.com/express_login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-black"
+            >
+              Stripe Express dashboard
+            </a>
+            .
+          </div>
+        ) : null}
+
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
           <Kpi
@@ -107,9 +129,15 @@ export default async function MakerDashboardPage() {
           />
           <Kpi
             icon={<Wallet className="w-3.5 h-3.5" strokeWidth={2.2} />}
-            label="Paid out"
+            label="Released to you"
             value={formatGbp(earnedPence)}
-            detail={`${formatGbp(pendingPence)} pending`}
+            detail={
+              earnedPence > 0
+                ? "In your Stripe balance · paid to bank on Stripe's schedule"
+                : pendingPence > 0
+                  ? `${formatGbp(pendingPence)} pending pickup`
+                  : "Nothing yet"
+            }
           />
           <Kpi
             icon={<Hammer className="w-3.5 h-3.5" strokeWidth={2.2} />}

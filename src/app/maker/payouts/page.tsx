@@ -148,9 +148,27 @@ export default async function MakerPayoutsPage({
 
         {/* Totals */}
         <div className="grid grid-cols-2 gap-3 mb-5">
-          <Total label="Paid out" amount={paidPence} />
-          <Total label="Pending" amount={pendingPence} />
+          <Total label="Released to your Stripe balance" amount={paidPence} />
+          <Total label="Pending pickup" amount={pendingPence} />
         </div>
+
+        {paidPence > 0 ? (
+          <div className="mb-5 rounded-xl border border-black/[0.08] bg-black/[0.02] px-5 py-3 text-[12px] font-light text-black/65 leading-snug">
+            Released = sent to your Stripe Connect balance. Stripe pays it
+            out to your bank on its own schedule (about 7 days rolling for
+            new UK accounts, 2&ndash;3 days after that). See live balance
+            and bank arrival dates on the{" "}
+            <a
+              href="https://connect.stripe.com/express_login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-black"
+            >
+              Stripe Express dashboard
+            </a>
+            .
+          </div>
+        ) : null}
 
         {/* List */}
         <Card className="p-0">
@@ -190,7 +208,11 @@ export default async function MakerPayoutsPage({
                       : p.status === "FAILED" ? "text-red-700"
                       : "text-black/45"
                     }`}>
-                      {p.status}
+                      {p.status === "PAID"
+                        ? "Released"
+                        : p.status === "FAILED"
+                          ? "Failed"
+                          : p.status}
                     </div>
                   </div>
                 </li>
