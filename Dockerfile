@@ -17,6 +17,14 @@ RUN npm ci
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
+# Next.js inlines NEXT_PUBLIC_* env vars into the client bundle at build
+# time. Cloud Run runtime env vars don't reach the build, so we accept
+# them as build-args here. STRIPE_PUBLISHABLE_KEY is needed by the
+# checkout flow (Stripe Elements init) and the TEST MODE badge gating.
+ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate

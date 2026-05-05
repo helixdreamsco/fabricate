@@ -79,6 +79,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Fetch NEXT_PUBLIC_* values from Secret Manager so Next.js can inline
+      # them into the client bundle at build time. The publishable key is
+      # itself a public value (it lives in every client bundle), but we mask
+      # the GH Actions log output anyway as a hygiene step.
+      - name: Resolve build-time env from Secret Manager
+        id: build_env
+        run: |
+          KEY=$(gcloud secrets versions access latest --secret=STRIPE_PUBLISHABLE_KEY --project=$GCP_PROJECT_ID)
+          echo "::add-mask::$KEY"
+          echo "stripe_pub=$KEY" >> $GITHUB_OUTPUT
+
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -88,6 +99,9 @@ jobs:
           tags: ${{ steps.image.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ steps.build_env.outputs.stripe_pub }}
+            NEXT_PUBLIC_APP_URL=https://fabricate.helixdreams.co
 
       # ── Migrate database via Cloud SQL Auth Proxy ────────────────────
       - name: Set up Node
