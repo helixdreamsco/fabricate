@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { transitionJob, recordJobEvent } from "@/lib/jobs";
 import { refund } from "@/lib/payments";
-import { notifyJobCancelled } from "@/lib/notifications";
+import { notifyBidDeclined, notifyJobCancelled } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -61,6 +61,33 @@ export async function POST(_req: Request, { params }: Params) {
     actorId: session.user.id,
     body: `${job.status} → CANCELLED`,
   });
+
+  // Sweep up any PENDING bids — the job's gone, so they can never be
+  // accepted. Mark them DECLINED so they drop off each maker's pending
+  // list and the bid history reflects reality.
+  const pendingBids = await prisma.jobBid.findMany({
+    where: { jobId: job.id, status: "PENDING" },
+    include: { maker: { include: { user: { select: { email: true } } } } },
+  });
+  if (pendingBids.length > 0) {
+    await prisma.jobBid.updateMany({
+      where: { jobId: job.id, status: "PENDING" },
+      data: { status: "DECLINED" },
+    });
+    const creator = await prisma.user.findUnique({
+      where: { id: job.creatorId },
+      select: { name: true, email: true },
+    });
+    for (const b of pendingBids) {
+      notifyBidDeclined({
+        makerEmail: b.maker.user.email,
+        makerDisplayName: b.maker.displayName,
+        jobId: job.id,
+        fileName: job.fileName,
+        creatorName: creator?.name ?? creator?.email ?? "The creator",
+      });
+    }
+  }
 
   // Notify the assigned maker, if any (no-op for OPEN-state cancellations).
   if (job.assignedMakerId) {
