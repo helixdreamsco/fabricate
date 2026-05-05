@@ -606,26 +606,23 @@ export function ConfigPanel() {
             {DELIVERY_OPTIONS.map((d) => {
               const active = d.key === draft.delivery;
               const isCourier = d.key === "courier";
-              const courierUnavailable =
-                isCourier && draft.userCoord !== null && courierBest === null;
-              const displayPriceGbp = isCourier && courierBest
-                ? courierBest.priceGbp ?? d.priceGbp
-                : d.priceGbp;
-              const displayEta = isCourier && courierBest
-                ? `Via ${courierBest.provider.name} · ~${courierBest.etaMin} min`
-                : d.eta;
-
+              // Courier is disabled at launch — no real provider integrations
+              // wired yet. Render the row but make it unselectable with a
+              // "Coming soon" subtitle so makers/creators see it's planned.
+              const disabled = isCourier;
               return (
                 <button
                   key={d.key}
-                  onClick={() => set({ delivery: d.key })}
-                  disabled={courierUnavailable}
+                  onClick={() => {
+                    if (!disabled) set({ delivery: d.key });
+                  }}
+                  disabled={disabled}
                   className={cn(
                     "text-left px-4 py-3 rounded-xl border flex items-center justify-between transition-all",
                     active
                       ? "border-[#0a0a0a] bg-[#0a0a0a] text-white"
                       : "border-black/10 hover:border-black/30 bg-white",
-                    courierUnavailable &&
+                    disabled &&
                       "opacity-50 cursor-not-allowed hover:border-black/10",
                   )}
                 >
@@ -637,9 +634,7 @@ export function ConfigPanel() {
                         active ? "text-white/70" : "text-black/55",
                       )}
                     >
-                      {courierUnavailable
-                        ? "Out of range for your area"
-                        : displayEta}
+                      {isCourier ? "Coming soon" : d.eta}
                     </span>
                   </div>
                   <span
@@ -648,7 +643,11 @@ export function ConfigPanel() {
                       active ? "text-white" : "text-black",
                     )}
                   >
-                    {displayPriceGbp === 0 ? "Free" : formatGBP(displayPriceGbp)}
+                    {isCourier
+                      ? "—"
+                      : d.priceGbp === 0
+                        ? "Free"
+                        : formatGBP(d.priceGbp)}
                   </span>
                 </button>
               );
