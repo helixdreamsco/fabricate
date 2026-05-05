@@ -27,6 +27,14 @@ export function ConfigPanel() {
   const [pending, setPending] = React.useState(false);
   const [showInfillInfo, setShowInfillInfo] = React.useState(false);
   const [showMakerPicker, setShowMakerPicker] = React.useState(false);
+  // Collapsible advanced sections — beginners shouldn't have to wade
+  // through every knob. Sensible defaults are pre-selected; the
+  // collapsed header shows the current selection so they can see what
+  // they'd be getting without expanding.
+  const [openMaterial, setOpenMaterial] = React.useState(false);
+  const [openColor, setOpenColor] = React.useState(false);
+  const [openQuality, setOpenQuality] = React.useState(false);
+  const [openInfill, setOpenInfill] = React.useState(false);
   const [courierBest, setCourierBest] = React.useState<CourierQuote | null>(
     null,
   );
@@ -330,14 +338,20 @@ export function ConfigPanel() {
         ) : null}
 
         {/* Material */}
-        <section className="px-6 pt-6 pb-6 border-b border-black/[0.06]">
-          <div className="flex items-center justify-between mb-3">
-            <MonoLabel size="md">Material</MonoLabel>
-            <MonoLabel size="sm">
-              {material.densityGPerCm3.toFixed(2)} g/cm³ ·{" "}
-              {formatGBP(material.pricePerGramGbp)}/g
-            </MonoLabel>
-          </div>
+        <section className="border-b border-black/[0.06]">
+          <SectionHeader
+            label="Material"
+            summary={material.label}
+            detail={material.tagline}
+            open={openMaterial}
+            onToggle={() => setOpenMaterial((v) => !v)}
+          />
+          {openMaterial ? (
+            <div className="px-6 pb-6">
+              <MonoLabel size="sm" className="mb-3 block">
+                {material.densityGPerCm3.toFixed(2)} g/cm³ ·{" "}
+                {formatGBP(material.pricePerGramGbp)}/g
+              </MonoLabel>
           <div className="grid grid-cols-2 gap-2">
             {MATERIALS.map((m) => {
               const active = m.key === draft.material;
@@ -384,20 +398,23 @@ export function ConfigPanel() {
               );
             })}
           </div>
+            </div>
+          ) : null}
         </section>
 
         {/* Color — single picker for single-mesh files, per-part for 3MF
             multi-material */}
         {draft.analysis.isMultiMaterial ? (
-          <section className="px-6 py-6 border-b border-black/[0.06]">
-            <div className="flex items-center justify-between mb-3">
-              <MonoLabel size="md">
-                Colours · {draft.analysis.parts.length} parts
-              </MonoLabel>
-              <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[#0a0a0a] bg-black/[0.04] px-2 py-0.5 rounded-full">
-                Multi-material
-              </span>
-            </div>
+          <section className="border-b border-black/[0.06]">
+            <SectionHeader
+              label="Colours"
+              summary={`${draft.analysis.parts.length} parts`}
+              detail="Multi-material"
+              open={openColor}
+              onToggle={() => setOpenColor((v) => !v)}
+            />
+            {openColor ? (
+              <div className="px-6 pb-6">
             <div className="flex flex-col gap-3">
               {draft.analysis.parts.map((part, i) => {
                 const current = draft.partColors[i] ?? "#0a0a0a";
@@ -461,17 +478,24 @@ export function ConfigPanel() {
                 Apply first to all →
               </button>
             </div>
+              </div>
+            ) : null}
           </section>
         ) : (
-          <section className="px-6 py-6 border-b border-black/[0.06]">
-            <div className="flex items-center justify-between mb-3">
-              <MonoLabel size="md">Color</MonoLabel>
-              <MonoLabel size="sm">
-                {material.colors.find(
+          <section className="border-b border-black/[0.06]">
+            <SectionHeader
+              label="Colour"
+              summary={
+                material.colors.find(
                   (c) => c.hex === (draft.partColors[0] ?? ""),
-                )?.name ?? "Custom"}
-              </MonoLabel>
-            </div>
+                )?.name ?? "Custom"
+              }
+              swatch={draft.partColors[0] ?? material.colors[0].hex}
+              open={openColor}
+              onToggle={() => setOpenColor((v) => !v)}
+            />
+            {openColor ? (
+              <div className="px-6 pb-6">
             <div className="flex flex-wrap gap-2.5">
               {material.colors.map((c) => {
                 const active = c.hex === (draft.partColors[0] ?? "");
@@ -492,51 +516,70 @@ export function ConfigPanel() {
                 );
               })}
             </div>
+              </div>
+            ) : null}
           </section>
         )}
 
         {/* Quality */}
-        <section className="px-6 py-6 border-b border-black/[0.06]">
-          <div className="flex items-center justify-between mb-3">
-            <MonoLabel size="md">Quality</MonoLabel>
-            <MonoLabel size="sm">
-              {QUALITIES.find((q) => q.key === draft.quality)!.layerMm.toFixed(
-                2,
-              )}{" "}
-              mm layers
-            </MonoLabel>
-          </div>
+        <section className="border-b border-black/[0.06]">
+          <SectionHeader
+            label="Quality"
+            summary={QUALITIES.find((q) => q.key === draft.quality)!.label}
+            detail={`${QUALITIES.find((q) => q.key === draft.quality)!.layerMm.toFixed(2)} mm layers`}
+            open={openQuality}
+            onToggle={() => setOpenQuality((v) => !v)}
+          />
+          {openQuality ? (
+            <div className="px-6 pb-6">
           <SegmentedControl
             value={draft.quality}
             onChange={(v) => set({ quality: v })}
             options={QUALITIES.map((q) => ({ value: q.key, label: q.label }))}
           />
+            </div>
+          ) : null}
         </section>
 
         {/* Infill */}
-        <section className="px-6 py-6 border-b border-black/[0.06]">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-1.5">
-              <MonoLabel size="md">Infill</MonoLabel>
-              <button
-                type="button"
-                onClick={() => setShowInfillInfo((s) => !s)}
-                aria-label="What is infill?"
-                aria-expanded={showInfillInfo}
-                className={cn(
-                  "w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors",
-                  showInfillInfo
-                    ? "bg-[#0a0a0a] text-white"
-                    : "bg-black/[0.06] text-black/55 hover:bg-black/15 hover:text-black",
-                )}
-              >
-                i
-              </button>
-            </div>
-            <span className="font-mono text-sm font-bold tabular-nums">
-              {draft.infill}%
-            </span>
-          </div>
+        <section className="border-b border-black/[0.06]">
+          <SectionHeader
+            label="Infill"
+            summary={`${draft.infill}%`}
+            detail={
+              draft.infill <= 15
+                ? "Light · decorative"
+                : draft.infill <= 30
+                  ? "Standard"
+                  : "Dense · functional"
+            }
+            open={openInfill}
+            onToggle={() => setOpenInfill((v) => !v)}
+          />
+          {openInfill ? (
+            <div className="px-6 pb-6">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  type="button"
+                  onClick={() => setShowInfillInfo((s) => !s)}
+                  aria-label="What is infill?"
+                  aria-expanded={showInfillInfo}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] transition-colors",
+                    showInfillInfo
+                      ? "text-[#0a0a0a]"
+                      : "text-black/55 hover:text-black",
+                  )}
+                >
+                  <span className="w-4 h-4 rounded-full bg-black/[0.06] flex items-center justify-center text-[9px] font-bold">
+                    i
+                  </span>
+                  What is infill?
+                </button>
+                <span className="font-mono text-sm font-bold tabular-nums">
+                  {draft.infill}%
+                </span>
+              </div>
           {showInfillInfo ? (
             <div className="mb-4 rounded-xl bg-black/[0.03] border border-black/[0.06] px-4 py-3 text-[12px] font-light text-black/70 leading-relaxed slide-in">
               <p>
@@ -582,6 +625,8 @@ export function ConfigPanel() {
             <span>20% · default</span>
             <span>100% · solid</span>
           </div>
+            </div>
+          ) : null}
         </section>
 
         {/* Quantity */}
@@ -856,6 +901,61 @@ function Row({
       </div>
       <span className="text-black">{value}</span>
     </div>
+  );
+}
+
+function SectionHeader({
+  label,
+  summary,
+  detail,
+  swatch,
+  open,
+  onToggle,
+}: {
+  /** Mono uppercase header (e.g. "Material"). */
+  label: string;
+  /** Bold body-size value of the current pick (e.g. "PLA"). */
+  summary: string;
+  /** Quiet secondary line under the summary (e.g. "Easy & affordable"). */
+  detail?: string;
+  /** Optional colour swatch shown left of the summary. */
+  swatch?: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="w-full px-6 py-5 flex items-center justify-between gap-4 hover:bg-black/[0.02] transition-colors text-left"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        {swatch ? (
+          <span
+            className="w-7 h-7 rounded-full ring-1 ring-black/15 shrink-0"
+            style={{ background: swatch }}
+          />
+        ) : null}
+        <div className="flex flex-col min-w-0">
+          <MonoLabel size="sm" className="!text-black/55">
+            {label}
+          </MonoLabel>
+          <span className="text-sm font-semibold truncate">
+            {summary}
+            {detail ? (
+              <span className="ml-2 font-light text-black/55">· {detail}</span>
+            ) : null}
+          </span>
+        </div>
+      </div>
+      <ChevronDown
+        className={cn(
+          "w-4 h-4 text-black/40 transition-transform shrink-0",
+          open && "rotate-180",
+        )}
+      />
+    </button>
   );
 }
 
