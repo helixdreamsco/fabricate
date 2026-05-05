@@ -60,6 +60,12 @@
   100% { transform: rotate(360deg); }
 }
 
+@keyframes upload-bar {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX(220%); }
+  100% { transform: translateX(220%); }
+}
+
 @layer base {
   * {
     border-color: var(--border);

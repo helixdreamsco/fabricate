@@ -363,9 +363,15 @@ export function LoggedInHome({
                       ? `Upload to ${activeCommunity.name}`
                       : "Drop an STL or click"}
               </div>
-              <div className="text-xs font-mono uppercase tracking-[0.15em] text-black/40 mt-1">
-                STL · 3MF · OBJ · max 80 MB
-              </div>
+              {analyzing ? (
+                <div className="mt-2 h-1 w-full rounded-full bg-black/[0.06] overflow-hidden">
+                  <div className="h-full w-1/3 rounded-full bg-[#7c3aed] animate-[upload-bar_1.2s_ease-in-out_infinite]" />
+                </div>
+              ) : (
+                <div className="text-xs font-mono uppercase tracking-[0.15em] text-black/40 mt-1">
+                  STL · 3MF · OBJ · max 80 MB
+                </div>
+              )}
             </div>
             <Button withArrow size="md" className="hidden sm:inline-flex">
               Upload
