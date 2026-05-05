@@ -99,6 +99,10 @@ jobs:
           tags: ${{ steps.image.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # One-shot no-cache to invalidate stale ENV layers from before
+          # the NEXT_PUBLIC_* build-args were wired. Flip back to false
+          # after this deploy lands.
+          no-cache: true
           build-args: |
             NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ steps.build_env.outputs.stripe_pub }}
             NEXT_PUBLIC_APP_URL=https://fabricate.helixdreams.co
