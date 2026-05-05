@@ -438,7 +438,7 @@ export function ConfigPanel() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1.5 items-center">
                       {material.colors.map((c) => {
                         const active = c.hex.toLowerCase() === current.toLowerCase();
                         return (
@@ -457,6 +457,11 @@ export function ConfigPanel() {
                           />
                         );
                       })}
+                      <CustomColorPicker
+                        value={current}
+                        onChange={(hex) => setPartColor(i, hex)}
+                        size={28}
+                      />
                     </div>
                   </div>
                 );
@@ -510,7 +515,7 @@ export function ConfigPanel() {
               onChange={(v) => set({ colorMatters: v })}
             />
             {!draft.colorMatters ? null : (
-            <div className="flex flex-wrap gap-2.5">
+            <div className="flex flex-wrap gap-2.5 items-center">
               {material.colors.map((c) => {
                 const active = c.hex === (draft.partColors[0] ?? "");
                 return (
@@ -529,6 +534,11 @@ export function ConfigPanel() {
                   />
                 );
               })}
+              <CustomColorPicker
+                value={draft.partColors[0] ?? "#0a0a0a"}
+                onChange={(hex) => setPartColor(0, hex)}
+                size={36}
+              />
             </div>
             )}
               </div>
@@ -916,6 +926,46 @@ function Row({
       </div>
       <span className="text-black">{value}</span>
     </div>
+  );
+}
+
+function CustomColorPicker({
+  value,
+  onChange,
+  size,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+  size: number;
+}) {
+  // Native <input type="color"> opens the OS colour wheel — no extra
+  // library needed. We hide the input itself and surface a styled label
+  // showing a rainbow swatch as the affordance.
+  const id = React.useId();
+  return (
+    <label
+      htmlFor={id}
+      title="Pick a custom colour"
+      className="relative rounded-full ring-1 ring-black/10 hover:ring-black/40 transition-all cursor-pointer flex items-center justify-center text-[9px] font-mono uppercase tracking-[0.18em] text-white"
+      style={{
+        width: size,
+        height: size,
+        background:
+          "conic-gradient(from 90deg, #ef4444, #f59e0b, #eab308, #22c55e, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)",
+      }}
+    >
+      <span
+        className="absolute inset-1 rounded-full"
+        style={{ background: value }}
+      />
+      <input
+        id={id}
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="sr-only"
+      />
+    </label>
   );
 }
 
