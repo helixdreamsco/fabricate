@@ -807,15 +807,11 @@ function EmptyMakers({ scope }: { scope: string | null }) {
 
 function LocationBadge({
   loc,
-  onRetry,
 }: {
   loc: LocState;
   onRetry: () => void;
 }) {
-  const [retrying, setRetrying] = React.useState(false);
-  React.useEffect(() => {
-    if (loc.kind !== "pending") setRetrying(false);
-  }, [loc.kind]);
+  const [showHelp, setShowHelp] = React.useState(false);
 
   if (loc.kind === "granted") {
     return (
@@ -837,30 +833,46 @@ function LocationBadge({
       </div>
     );
   }
+  // Denied / unsupported. We can't programmatically re-prompt once the
+  // browser has remembered a "block" decision, so don't try — show a
+  // help popover with the manual re-enable steps instead.
   return (
-    <button
-      onClick={() => {
-        setRetrying(true);
-        onRetry();
-        if ("geolocation" in navigator) {
-          navigator.geolocation.getCurrentPosition(
-            () => window.location.reload(),
-            () => setRetrying(false),
-          );
-        }
-      }}
-      className="inline-flex items-center gap-2 h-7 pl-2 pr-3 rounded-full border border-black/10 bg-white hover:bg-black/[0.04] transition-colors"
-    >
-      {retrying ? (
-        <RefreshCw className="w-3 h-3 animate-spin text-black/55" />
-      ) : (
+    <div className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setShowHelp((v) => !v)}
+        className="inline-flex items-center gap-2 h-7 pl-2 pr-3 rounded-full border border-black/10 bg-white hover:bg-black/[0.04] transition-colors"
+      >
         <MapPin className="w-3 h-3 text-black/55" />
-      )}
-      <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/55">
-        {loc.kind === "denied" ? "Location blocked" : "Location unavailable"}
-        <span className="text-black/30 ml-2">· distances approx</span>
-      </span>
-    </button>
+        <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/55">
+          {loc.kind === "denied" ? "Location off" : "Location unavailable"}
+          <span className="text-black/30 ml-2">· tap for help</span>
+        </span>
+      </button>
+      {showHelp ? (
+        <div className="absolute right-0 top-9 z-30 w-72 rounded-xl border border-black/10 bg-white shadow-lg p-4 text-[12px] font-light leading-relaxed">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold text-black/55 mb-2">
+            Re-enable location
+          </div>
+          <p className="text-black/70 mb-2">
+            Browsers don&rsquo;t let us re-ask once you&rsquo;ve blocked
+            permission for a site. To switch it back on:
+          </p>
+          <ol className="list-decimal pl-4 text-black/65 space-y-1">
+            <li>Click the lock icon in the URL bar.</li>
+            <li>
+              <strong>Site settings</strong> →{" "}
+              <strong>Location</strong> → <strong>Allow</strong>.
+            </li>
+            <li>Reload this page.</li>
+          </ol>
+          <p className="mt-3 text-[11px] text-black/45">
+            Without it, the marketplace still works — distances and the
+            map just won&rsquo;t centre on you.
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
