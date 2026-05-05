@@ -161,10 +161,38 @@ function defaultSubject(kind: NotifKind): string {
 
 function defaultHtml(body: string, link?: string): string {
   const safeLink = link ? `${APP_BASE}${link}` : APP_BASE;
-  return `<div style="font-family: -apple-system, system-ui, sans-serif; padding: 16px;">
-    <p style="font-size:15px; color:#111;">${escapeHtml(body)}</p>
-    <p><a href="${safeLink}" style="display:inline-block; margin-top:12px; padding:10px 14px; background:#0a0a0a; color:#fff; text-decoration:none; border-radius:8px; font-family:monospace; font-size:11px; letter-spacing:.18em; text-transform:uppercase;">Open Fabricate</a></p>
-  </div>`;
+  const inner = `<p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#0a0a0a">${escapeHtml(body)}</p>
+    <p style="margin:24px 0 8px"><a href="${safeLink}" style="display:inline-block;background:#0a0a0a;color:#ffffff;padding:12px 22px;border-radius:9999px;font-family:'Space Mono',ui-monospace,monospace;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;text-decoration:none">Open Fabricate</a></p>`;
+  return `<!doctype html>
+<html><body style="margin:0;padding:32px 16px;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;color:#0a0a0a">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:16px;overflow:hidden">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-bottom:1px solid rgba(0,0,0,0.06)">
+      <tr>
+        <td style="padding:18px 24px;vertical-align:middle">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              <td style="vertical-align:middle;padding-right:10px">
+                <img src="https://fabricate.helixdreams.co/icon-120.png" width="22" height="22" alt="" style="display:block;border:0;outline:none">
+              </td>
+              <td style="vertical-align:middle;font-family:'Space Mono',ui-monospace,monospace;font-size:11px;letter-spacing:0.22em;text-transform:uppercase;color:#0a0a0a;font-weight:700;line-height:1">
+                Fabricate
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    <div style="padding:24px;font-size:15px;line-height:1.55">
+      ${inner}
+    </div>
+    <div style="padding:14px 24px;border-top:1px solid rgba(0,0,0,0.06);font-family:'Space Mono',ui-monospace,monospace;font-size:10px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(0,0,0,0.45);line-height:1.6">
+      Fabricate · operated by helixdreamsco<br>
+      <a href="mailto:support@helixdreams.co" style="color:rgba(0,0,0,0.55);text-decoration:underline">support@helixdreams.co</a>
+      <span style="color:rgba(0,0,0,0.25)"> · </span>
+      <a href="https://fabricate.helixdreams.co" style="color:rgba(0,0,0,0.55);text-decoration:underline">fabricate.helixdreams.co</a>
+    </div>
+  </div>
+</body></html>`;
 }
 
 function escapeHtml(s: string): string {
