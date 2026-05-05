@@ -1,105 +1,249 @@
 # Fabricate Privacy Policy
 
-**Effective date:** 2026-05-04
-**Version:** 3
+**Effective date:** 2026-05-05
+**Version:** 4
+**Jurisdiction:** United Kingdom (UK GDPR + Data Protection Act 2018)
 
 ---
 
-## 1. Who we are
+## 1. Who we are and our role
 
-Fabricate is operated by **HELIXDREAMSCO LTD (Company Number 17158644)** of **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**. We are the data controller for the personal data described below. Contact: privacy@helixdreams.co.
+Fabricate is operated by **HELIXDREAMSCO LTD** (Company Number 17158644), a private limited company registered at **26 Watermint Quay, Craven Walk, London, N16 6DD, United Kingdom**.
+
+For the personal data described in this policy, **HELIXDREAMSCO LTD is the data controller**, except where this policy expressly states that another organisation (such as Stripe Identity) acts as a separate or independent controller for a specific operation.
 
 We are registered with the UK Information Commissioner's Office under registration **ZC135824**.
 
-## 2. What we collect
+For any data-protection query — including access, rectification, erasure, portability, restriction, objection, or complaint — contact **privacy@helixdreams.co**.
 
-| Category | Examples | Source |
+We are not currently required to appoint a Data Protection Officer (DPO) under Article 37 of the UK GDPR. The privacy@ inbox is monitored as our designated data-protection contact.
+
+## 2. Scope of this policy
+
+This policy explains how we handle personal data of:
+
+- **Creators** — people who upload files and post 3D-printing jobs.
+- **Makers** — people who own 3D printers and accept those jobs.
+- **Visitors** — anyone who lands on a Fabricate page without signing in.
+
+It does **not** cover the privacy practices of third-party sites linked from Fabricate, or the practices of the other party to a job once data has been shared with them under clause 8 below — though we do impose contractual minimisation duties on both sides (see clause 8 and our [Terms](/terms) §13).
+
+## 3. What we collect
+
+| Category | Specific items | Where it comes from |
 |---|---|---|
-| Account | Name, email, profile photo | Google sign-in |
-| Maker profile | Display name, postcode, printer model, bio | You |
-| Identity verification | Document type + verified-name + verified-address (extracted by Stripe Identity); we do **not** receive or store the document image | Stripe Identity |
-| Calibration print | Photo you upload | You |
-| Job content | Files you upload (STL, 3MF, STEP, OBJ), titles, notes | You |
-| Communications | Chat messages, dispute messages, evidence images | You |
-| Payments | Stripe customer/account ids, bid + payout amounts; we never see card numbers | Stripe |
-| Reviews | Your ratings and comments after a job | You |
-| Device | IP address, user-agent, approximate location derived from IP | Your browser |
-| Usage logs | Pages visited, errors, performance traces | Your browser |
+| **Account identity** | Full name, email address, profile photo | Google OAuth at sign-in |
+| **Legal acceptance** | Version + timestamp of each Terms / Privacy / Acceptable-Use acceptance, IP address and user-agent at acceptance | Generated when you tick the box |
+| **Maker profile** | Display name, postcode, printer model(s), AMS flag, materials stocked, bio, free-completion-photo flag | You enter on `/maker/profile` |
+| **Maker identity verification (extracted attributes only)** | Document type, verified legal name, verified address, verified date of birth, identity-session id, status | Stripe Identity passes the **extracted attributes** to us; we **do not** receive the passport/driving-licence image, the selfie image, the liveness video, or the OCR raw output |
+| **Job content** | Uploaded mesh file (STL/3MF/STEP/OBJ/.zip), filename, file size, derived dimensions and triangle count, optional notes | You upload via `/configure` |
+| **Quote and pricing** | Material, colour preferences (and the new "colour matters" flag), infill, quality, quantity, quoted price, alternative-material list, free-text material requirements | You configure |
+| **Bids and acceptances** | Bid amounts, ETA, bid messages, accept/decline timestamps | Maker submits |
+| **Pickup metadata** | Maker's pickup postcode and resolved lat/lng (via postcodes.io for map plotting), 6-digit pickup code, optional pickup notes | Generated at posting + at "ready for pickup" |
+| **Communications** | Chat messages, dispute messages, evidence images | You send |
+| **Payment processing data** | Stripe customer id, Stripe Connect account id, bid + payout amounts, refund amounts; **we never see your card number, expiry, CVC, or full bank account details** | Stripe |
+| **Reviews and ratings** | 1-5 star rating + comment after a job, your verified-maker badge state | You submit |
+| **Notifications & preferences** | In-app notification rows, per-category email/in-app opt-out preferences | Generated by your activity + your preferences |
+| **Device & telemetry** | IP address, user-agent, approximate IP-derived location, browser fingerprint elements (timezone, screen size) | Your browser sends, we log |
+| **Server usage logs** | URLs hit, response codes, latency, error stack traces (without request bodies) | Cloud Run access logs |
 
-## 3. Why we use it (lawful bases under UK GDPR)
+We do not knowingly collect any **special-category personal data** under Article 9 of the UK GDPR (health, race, religion, biometric data for unique identification, etc.). The Stripe Identity flow involves biometric processing for authentication, but this is conducted by **Stripe as a separate independent controller** — we do not receive the biometric raw data and do not perform identification ourselves.
 
-| Use | Lawful basis |
-|---|---|
-| Run your account, serve pages, process orders | **Performance of a contract** with you |
-| Verify Maker identity to reduce fraud | **Legitimate interests** (marketplace integrity), and **legal obligation** (anti-fraud) where applicable |
-| Send transactional notifications (bid received, dispute resolved) | **Performance of a contract** |
-| Marketing emails and tips | **Consent**, only after explicit opt-in |
-| Detect abuse, fraud, security incidents | **Legitimate interests** |
-| Comply with HMRC and other regulators | **Legal obligation** |
+## 4. Lawful bases under UK GDPR
 
-## 4. Who we share it with
+We process your personal data on the following lawful bases (Article 6 UK GDPR):
 
-- **Stripe Payments Europe Ltd** — payments and identity verification.
-- **Resend** — transactional email delivery.
-- **Google** — sign-in (your name, email, photo).
-- **Hosting and infrastructure providers** (e.g. Vercel, Cloud SQL).
-- **The other party to a job** — Creators see Maker display name, city (outward postcode), printer model, bio, ratings, and verified status. Makers see Creator display name, file, materials, notes, and quoted price. Pickup address is shared between the two only after a bid is accepted.
-- **Law enforcement / regulators** — when required by law.
+| Purpose of processing | Lawful basis | Notes |
+|---|---|---|
+| Operate your account, render the platform, process the bid → accept → pickup → payout flow | **Article 6(1)(b)** — performance of a contract (these Terms) | Without this we can't run the service |
+| Send transactional notifications (bid received, status change, pickup ready, payout released) | **Article 6(1)(b)** — contract | Cannot be opted out of without breaking the service |
+| Verify Maker identity via Stripe Identity | **Article 6(1)(c)** — legal obligation (Money Laundering Regulations 2017, Stripe's KYC duties as a regulated payment institution); **Article 6(1)(f)** — legitimate interests (fraud prevention) | |
+| Detect abuse, fraud, security incidents | **Article 6(1)(f)** — legitimate interests | Balanced against your right to privacy via the minimisation rules below |
+| Tax records, accounting, regulatory reporting | **Article 6(1)(c)** — legal obligation (HMRC, Companies Act 2006) | |
+| Resolve disputes between Creators and Makers | **Article 6(1)(b)** + **6(1)(f)** | |
+| Comply with court orders, regulator requests, law-enforcement requests | **Article 6(1)(c)** — legal obligation | |
+| Defend Fabricate against legal claims | **Article 6(1)(f)** — legitimate interests | |
+| Optional marketing emails (announcements, product news) | **Article 6(1)(a)** — consent | We don't currently send these; if we ever do, we'll add an explicit opt-in |
+| Improve the service via aggregated, non-identifying analytics | **Article 6(1)(f)** — legitimate interests | We do not use third-party advertising or behavioural-tracking analytics |
 
-We do **not** sell personal data. We do **not** share data with advertisers.
+You have the right to **object** to any processing based on legitimate interests; see clause 11.
 
-## 5. Where data lives
+## 5. Stripe Identity — controller relationship
 
-The platform is hosted in the United Kingdom. Stripe processes payments and identity globally; transfers outside the UK are made under the UK International Data Transfer Agreement or Standard Contractual Clauses.
+When you go through identity verification at `/maker/verification`, you are redirected to a Stripe-hosted page. **For that flow, Stripe Payments Europe Ltd ("Stripe") acts as an independent data controller**, not as our processor. The privacy policy you accept on Stripe's hosted page is theirs, not ours.
 
-## 6. How long we keep it
+What flows back to us via webhook is **only the verified outcome** — verification status (`verified` / `requires_input` / `canceled`), the document type accepted, the verified legal name, the verified date of birth, and the verified address. We never receive:
 
-| Data | Retention |
-|---|---|
-| Account, jobs, payments, reviews | Lifetime of account + 6 years (HMRC + limitation periods) |
-| Chat & dispute messages | Lifetime of account + 6 years |
-| Identity-verification metadata | 6 years from last activity |
-| Login/session logs | 90 days |
-| Marketing-email opt-in records | While opted in + 1 year after withdrawal |
+- the photograph or video of you taken during the selfie/liveness step;
+- a scan or copy of your passport / driving licence;
+- the biometric template Stripe uses internally;
+- raw OCR output.
 
-## 7. Your rights
+If you want a copy of, or to erase, the underlying biometric data, you must contact **Stripe directly** — we cannot action it.
 
-Under UK GDPR you can ask us to:
+## 6. Cookies and similar technologies
 
-- give you a copy of your personal data (Right of Access);
-- correct it (Rectification);
-- delete it where we no longer have a lawful basis (Erasure);
-- restrict processing during a dispute about accuracy or basis;
-- export it in a portable format (Portability);
-- object to processing based on legitimate interests;
-- withdraw any marketing consent at any time.
+We use the **minimum cookies necessary** for the platform to work:
 
-Email privacy@helixdreams.co. We respond within one calendar month.
+| Cookie | Purpose | Lawful basis | Lifetime |
+|---|---|---|---|
+| `next-auth.session-token` (or `__Secure-next-auth.session-token` on production) | Keeps you signed in (NextAuth JWT) | Strictly necessary | ~30 days, sliding |
+| `next-auth.csrf-token` | CSRF protection on auth endpoints | Strictly necessary | Session |
+| `next-auth.callback-url` | Returns you to the page you were on after sign-in | Strictly necessary | Session |
+| `fbg_access` | Pre-launch staging gate (no longer in use post-launch) | Strictly necessary | Session |
 
-You may complain to the Information Commissioner's Office at **ico.org.uk** or 0303 123 1113.
+We do **not** use:
 
-## 8. File security
+- advertising cookies,
+- third-party behavioural-tracking cookies,
+- session-replay tools,
+- fingerprinting libraries beyond what Stripe needs internally for fraud-scoring its own payment flows.
 
-We use TLS in transit and at-rest encryption on hosted storage. Files you upload are accessible only by:
+UK PECR (the Privacy and Electronic Communications Regulations 2003) requires consent for non-essential cookies; we don't set any, so we don't show a cookie banner. If we ever introduce non-essential cookies (e.g. for marketing), we will add a UK-compliant consent banner before doing so.
 
-- you (the uploader),
-- the Maker assigned to your job (after they accept your bid),
-- Fabricate staff (limited to support, dispute resolution, and platform safety).
+## 7. Pickup-address minimisation rule
 
-We aim to detect and respond to security incidents within 72 hours and will notify the ICO and affected users when required by UK GDPR. **You should not rely on the platform to store files you cannot afford to lose.**
+Pickup is the most data-sensitive moment in the marketplace, because each party briefly needs the other's location. We therefore enforce strict minimisation:
 
-## 9. Children
+- The Maker's pickup address (postcode + any optional pickup notes) is shared **only with the Creator who has had their bid accepted on the specific job**, and **only at the point a pickup token is minted**.
+- The Creator's name and any optional shipping postcode are shared with the Maker similarly limited to the duration of that single job.
+- Both parties accept (under our [Terms](/terms) §13) that they will **not store, save, copy, share, or further process** the other party's address or contact details after the transaction is complete.
 
-The platform is not for use by anyone under 18.
+This implements **Article 5(1)(c) UK GDPR** (data minimisation) and **Article 5(1)(e)** (storage limitation) at the inter-party level.
 
-## 10. Cookies
+If a Maker uses Creator data for harassment, marketing, or any unauthorised purpose — or vice versa — Fabricate may suspend or close the offending account, retain evidence to defend the affected party, and pass the matter to the ICO where appropriate.
 
-We use only the cookies necessary to keep you signed in and to keep the platform secure (CSRF, session). We do not use marketing cookies. Adjusting browser settings to reject cookies will break sign-in.
+## 8. Who we share data with
 
-## 11. Changes
+We share personal data only as set out below. We do **not** sell data, do **not** share data with advertisers, and do **not** participate in any data-broker programme.
 
-When this policy materially changes we'll bump the version number, publish the new text here, and require you to re-accept on your next visit before continuing to use the platform.
+| Recipient | What is shared | Why | Their role |
+|---|---|---|---|
+| **Stripe Payments Europe Ltd** (Ireland; uses US sub-processors) | Customer/payment metadata, the maker's connected-account info, identity-verification flow data | Card processing, marketplace payouts, Identity KYC | Mostly **processor** for payments (under Art. 28 UK GDPR); **independent controller** for Identity (see §5) |
+| **Google LLC** (United States) — Google OAuth + Google Workspace inbound mail | Your Google sign-in details (email, name, profile photo) | Sign-in; mail receipt at our `support@helixdreams.co` / `privacy@helixdreams.co` aliases | **Independent controller** for the OAuth + mail provider role |
+| **Resend, Inc.** (United States) | Recipient email address, subject line, transactional message body, delivery status events | Transactional email (bid notifications, status changes, pickup codes) | **Processor** under Art. 28 |
+| **Google Cloud (GCP)** — Cloud Run, Cloud SQL, Secret Manager, Cloud Storage (region: europe-west1 / europe-west2) | All platform data at rest and in transit | Hosting, database, secret storage, file storage | **Processor** under Art. 28 |
+| **Firebase Hosting** (Google) — domain proxy | Request URL, IP address | Edge proxy in front of Cloud Run | **Processor** under Art. 28 |
+| **postcodes.io** (run by Ideal Postcodes / Tetrade Solutions Ltd, UK) | Maker postcodes, in batches | Geocode postcodes to lat/lng for map markers | Their service is a public, free, anonymous lookup — minimal data flow |
+| **OpenStreetMap / map tile providers** | IP address, viewport coordinates | Render the marketplace map | Open-source map provider |
+| **The other party to a job** | See clause 7 above | Complete the bid → pickup → review cycle | Each party is an independent controller for the data they receive |
+| **Law-enforcement, regulators, courts** | Whatever is lawfully required | Comply with court orders, ICO requests, NCA referrals (e.g. firearm-template incidents under our [Terms](/terms) §7), HMRC investigations | n/a |
+| **Successor to our business** | Limited to what is necessary for the transaction and ongoing service | If we are acquired, merged, or sold | Successor steps into our controller role and is bound by this policy until they update it |
 
-## 12. Contact
+## 9. International transfers
 
-privacy@helixdreams.co for any data-protection question, subject-access request, or complaint.
+| Recipient | Country | Safeguard |
+|---|---|---|
+| Stripe (US sub-processors) | US (and others) | UK Addendum to the EU Standard Contractual Clauses (SCCs); Stripe's Data Processing Addendum |
+| Google LLC (Workspace + OAuth) | US | UK Addendum + adequacy under the **UK Extension to the EU–US Data Privacy Framework** (the UK extension recognises the framework as providing essential equivalence for transfers from the UK) |
+| Resend, Inc. | US | UK SCCs |
+| Google Cloud Platform | EU (regional pinning to europe-west1 / europe-west2) for the live workloads, with limited US sub-processing | UK SCCs / EU SCCs for any US sub-processing |
+
+We pin our primary application workloads (Cloud Run, Cloud SQL, Secret Manager) to **EU/UK regions** wherever the provider supports it. We have not enabled any provider feature that automatically replicates data to non-UK/EU regions.
+
+If the UK government revokes adequacy or alters the cross-border transfer framework, we will update this section and rely on the SCCs as our default mechanism.
+
+## 10. Retention
+
+We retain personal data for as long as it serves a lawful purpose, applying the strictest of: contract performance, legal obligation, statutory limitation period for claims (six years in England under the Limitation Act 1980), or legitimate interests balanced against your rights.
+
+| Data category | Retention period | Reason |
+|---|---|---|
+| Account record (name, email, OAuth account row) | Lifetime of account + **6 years** after closure | Limitation Act 1980; tax records (HMRC); contract evidence |
+| Legal-acceptance log (Terms / Privacy version + timestamp + IP + user-agent) | **6 years** from acceptance | Contract evidence |
+| Job + bid + payment + payout records | **6 years** from creation | HMRC, accounting, dispute defence |
+| Chat & dispute messages | **6 years** from creation | Dispute and contract evidence |
+| Identity-verification *metadata* we hold | **6 years** from last verification event | Money Laundering Regulations 2017 |
+| Identity-verification *biometrics* | **Held by Stripe, not by us** — see Stripe's policy | n/a |
+| Uploaded mesh files | **Until 24 hours after pickup confirmation, or 14 days after "Ready for pickup", whichever sooner**, then auto-purged from the Maker's environment by contractual obligation under the [Terms](/terms) §6; on Fabricate's side, files are kept for **6 years** in cold storage for dispute defence | Limitation Act 1980; auto-deletion enforced for the inter-party copy |
+| Calibration print images (legacy — feature retired 2026-05-05) | Existing rows held under the same 6-year rule and not collected for new makers | n/a |
+| Pickup metadata (postcode, lat/lng, code) | **6 years** from job completion | Dispute, regulator, tax |
+| Notifications + preferences | Lifetime of account + **6 years** | Dispute evidence |
+| Login & session logs | **90 days** | Security investigations |
+| Cloud Run access logs (URLs, IP, response code) | **30 days** | Operational debugging |
+| Marketing-consent records (if/when we ever send marketing) | While opted in + **1 year** after withdrawal | Demonstrate consent compliance |
+
+You can ask us to delete data sooner where we no longer have a lawful basis (see clause 11 — Right to erasure).
+
+## 11. Your rights under UK GDPR
+
+You have the following rights with respect to personal data we hold about you:
+
+- **Right of access** (Art. 15) — a copy of the personal data we hold about you, plus the metadata required by the Article (purposes, recipients, retention, your rights).
+- **Right to rectification** (Art. 16) — correction of inaccurate or incomplete data.
+- **Right to erasure** (Art. 17) — deletion where we no longer have a lawful basis. Note that data we are obliged to retain (e.g. tax records, dispute defence within the limitation period) may be retained even after an erasure request, with all other processing stopped.
+- **Right to restriction** (Art. 18) — pause processing while a dispute about accuracy or basis is resolved.
+- **Right to data portability** (Art. 20) — a copy in a structured, commonly used, machine-readable format (JSON or CSV) for data we hold under a contract or consent basis.
+- **Right to object** (Art. 21) — object to processing based on legitimate interests, including profiling.
+- **Right to withdraw consent** at any time, where we rely on consent.
+- **Right not to be subject to automated decisions** with legal or similarly significant effect (Art. 22) — we do not currently make any such decisions; if we ever introduce them (e.g. fraud-scoring with legal effect), we will document the safeguards.
+
+**How to exercise these rights:** email **privacy@helixdreams.co** with a clear description of the right you want to exercise. We respond within **one calendar month** (Article 12(3)), extendable by two further months for complex requests.
+
+We may need to verify your identity before responding — typically by confirming the email matches a Fabricate account or by asking for an in-app confirmation token. We use the minimum information needed for that check.
+
+There is no fee, except where the request is manifestly unfounded or excessive (Article 12(5)), in which case we may charge a reasonable fee or refuse — and we'll tell you why.
+
+If you're not satisfied with our response, you can complain to the **Information Commissioner's Office** at **ico.org.uk** or **0303 123 1113**.
+
+## 12. Children
+
+The platform is not for use by anyone under **18**. By using Fabricate you confirm you are 18 or older. If we become aware that a user is under 18, we will close the account and delete personal data we are not legally required to retain.
+
+## 13. Security
+
+We protect data using:
+
+- **TLS 1.2+** in transit on all customer-facing endpoints;
+- **at-rest encryption** on hosted databases (Cloud SQL) and object storage (Cloud Storage), using provider-managed keys;
+- **secrets** (API keys, database passwords, OAuth client secrets, webhook signing secrets) stored in **Google Secret Manager** with versioning, audit logging, and IAM-scoped access;
+- **JWT-based session tokens** with rotation on legal-document re-acceptance and on suspicious activity;
+- **Stripe Identity** for KYC so we never handle passport / driving-licence images directly;
+- **Workload Identity Federation** for our deploy pipeline (no long-lived JSON service-account keys).
+
+No system is impenetrable. **You should not rely on the platform to store files or data you cannot afford to lose.**
+
+## 14. Breach notification
+
+If we become aware of a personal-data breach that is likely to result in a risk to your rights and freedoms (Article 33 UK GDPR), we will notify the **Information Commissioner's Office within 72 hours** of becoming aware. Where the risk to you is **high**, we will notify you directly without undue delay (Article 34) — by email to your account address and via in-app notification. Our breach-response process is reviewed annually.
+
+## 15. Account closure and data deletion
+
+You may close your Fabricate account at any time by emailing **support@helixdreams.co**.
+
+On closure:
+
+- your profile becomes inactive immediately;
+- pending disputes, payouts, refunds, and legal holds are completed before deletion;
+- data we are legally obliged to retain (tax records, identity-verification metadata, dispute records) is retained for the periods listed in clause 10;
+- everything else is deleted within **30 days** of closure where practicable.
+
+Once the legally-mandated retention periods expire, the remaining data is deleted automatically.
+
+## 16. Marketing
+
+**We do not currently send marketing email**, run mailing lists, or use third-party marketing tools. The transactional emails you receive (bid placed, bid accepted, pickup ready, etc.) are sent under contract performance and cannot be opted out of without rendering the platform unusable.
+
+If we ever introduce optional marketing communications, they will be **opt-in only**, and you will be able to withdraw consent at any time via a one-click link in the email or via your `/account/notifications` preferences page.
+
+## 17. Changes to this policy
+
+We may update this policy. When we do — for any change that materially affects your rights or our processing — we'll bump the version number at the top, post the new text at `/privacy`, and require you to re-accept on your next visit before continuing to use the platform. Minor editorial corrections (typos, broken links) may be made without a re-acceptance trip.
+
+The full version history is available on request via privacy@helixdreams.co.
+
+## 18. Contact
+
+- **All data-protection queries, subject-access requests, complaints:** privacy@helixdreams.co
+- **General support:** support@helixdreams.co
+- **ICO complaints:** [ico.org.uk](https://ico.org.uk) · 0303 123 1113
+
+---
+
+<!-- DRAFTING NOTES FOR SOLICITOR REVIEW:
+- Stripe controller-vs-processor split (§5, §8) — confirm against current Stripe DPA wording. The split here is the position Stripe takes in their published DPA but the boundary is the area most likely to attract a regulator question; have a solicitor check the boundary mapping for Identity vs Connect specifically.
+- International transfers (§9) — UK Extension to the EU-US Data Privacy Framework was finalised by the UK government in late 2023 / early 2024; confirm it remains in force at the effective date of this policy. If revoked, fall back to SCCs as the only mechanism.
+- Retention table (§10) — confirm the 6-year period (Limitation Act 1980 s5) is appropriate vs. potentially longer ML / fraud / KYC obligations; ML Regulations 2017 require certain records for 5 years from end of business relationship — check that 6 years end-of-account-life satisfies both.
+- Children clause (§12) — currently a passive declaration; consider whether to add a "verifiable age check" mechanism beyond Google OAuth's age signal (which we don't actually receive).
+- §16 — if Miles ever wants to send a launch announcement to existing users, they would need a fresh consent collection mechanism. Currently we have nothing of the sort.
+-->
