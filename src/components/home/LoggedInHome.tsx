@@ -124,11 +124,38 @@ export function LoggedInHome({
     ? communities.find((c) => c.id === scopeId) ?? null
     : null;
 
-  // The static catalogue of fake makers was retired pre-launch — a
-  // marketplace can't ship with seeded fake names. Real makers will come
-  // from /api/makers once we wire the home page to the DB. Until then,
-  // an empty list correctly shows the "no makers yet" state.
+  // The static catalogue of fake makers was retired pre-launch. The list
+  // panel below is populated from /api/makers (realMakers state); the
+  // FleetMap takes a Maker[]-shaped adaptation of those rows for the
+  // markers it can plot — only makers whose postcode resolved to lat/lng
+  // are mapped. Other Maker fields the map doesn't actually read are
+  // stubbed with safe defaults; the list view never sees this array.
   const inScopeMakers: Maker[] = [];
+
+  const mapMakers: Maker[] = React.useMemo(() => {
+    return realMakers
+      .filter(
+        (m): m is typeof m & { lat: number; lng: number } =>
+          m.lat != null && m.lng != null,
+      )
+      .map((m) => ({
+        id: m.id,
+        name: m.displayName,
+        area: m.postcode ?? "",
+        postcode: m.postcode ?? "",
+        printer: m.printerModel ?? "",
+        statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
+        rating: 0,
+        lat: m.lat,
+        lng: m.lng,
+        available: m.stripeOnboarded,
+        materials: [],
+        buildVolumeMm: { x: 256, y: 256, z: 256 },
+        queueMins: 0,
+        machineRateGbpPerHour: 0,
+        supportsMultiMaterial: m.hasAMS,
+      }));
+  }, [realMakers]);
 
   // Score + sort.
   const analysisLite = draft.analysis
@@ -375,7 +402,7 @@ export function LoggedInHome({
             positioned container has something to fill. */}
         <div className="relative bg-white rounded-2xl border border-black/[0.08] overflow-hidden min-h-[55vh] md:min-h-[70vh] md:h-[calc(100vh-220px)]">
           <FleetMap
-            makers={inScopeMakers}
+            makers={mapMakers}
             user={loc.kind === "granted" ? loc.coord : null}
             selectedMakerId={selected}
             onSelect={setSelected}

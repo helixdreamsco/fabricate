@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { summarize, type SharedCommunity } from "@/lib/maker-profile";
+import { geocodePostcodes } from "@/lib/geocoding";
 
 /**
  * GET /api/makers
@@ -57,6 +58,13 @@ export async function GET(req: Request) {
     },
   });
 
+  // Resolve postcodes → lat/lng in one batch so map markers can render.
+  // Degrades gracefully (lat/lng stay null) if postcodes.io is unreachable.
+  const postcodes = profiles
+    .map((p) => p.postcode)
+    .filter((p): p is string => !!p);
+  const coords = await geocodePostcodes(postcodes);
+
   return NextResponse.json({
     makers: profiles.map((p) => {
       const shared: SharedCommunity[] = (p.user?.memberships ?? []).map((m) => ({
@@ -65,7 +73,13 @@ export async function GET(req: Request) {
         name: m.community.name,
         iconHue: m.community.iconHue,
       }));
-      return summarize(p, shared);
+      const summary = summarize(p, shared);
+      const coord = p.postcode ? coords.get(p.postcode) : undefined;
+      return {
+        ...summary,
+        lat: coord?.lat ?? null,
+        lng: coord?.lng ?? null,
+      };
     }),
   });
 }

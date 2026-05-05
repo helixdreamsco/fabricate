@@ -48,6 +48,10 @@ export type MakerProfileSummary = {
   displayName: string;
   bio: string | null;
   postcode: string | null;
+  /** Resolved from postcode via postcodes.io. Null if no postcode set
+   *  on the profile or geocoding failed/unavailable. */
+  lat: number | null;
+  lng: number | null;
   printerModel: string | null;
   hasAMS: boolean;
   materials: string[];
@@ -85,6 +89,9 @@ export function summarize(
     displayName: p.displayName,
     bio: p.bio,
     postcode: p.postcode,
+    // Caller fills these from a batch geocoding lookup if it wants them.
+    lat: null,
+    lng: null,
     printerModel: primary?.printerModel ?? null,
     hasAMS: primary?.hasAMS ?? false,
     materials: primary ? parsePrinterMaterials(primary.materials) : [],
