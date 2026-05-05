@@ -57,13 +57,23 @@ async function sendEmail(opts: SendOpts): Promise<void> {
     return;
   }
   try {
-    await _resend.emails.send({
+    const resp = await _resend.emails.send({
       from: FROM,
       to: opts.to,
       subject: opts.subject,
       html: wrapped,
       text: opts.text,
     });
+    // Resend SDK returns errors in the response body rather than throwing,
+    // so a silent rejection (e.g. unverified-domain sender, blocked
+    // recipient) wouldn't reach the catch block. Log it.
+    if (resp?.error) {
+      // eslint-disable-next-line no-console
+      console.error(
+        "[email] resend rejected send",
+        { to: opts.to, subject: opts.subject, error: resp.error },
+      );
+    }
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("[email] send failed", e);

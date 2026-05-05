@@ -122,12 +122,21 @@ export async function notify(opts: {
   const html = opts.emailHtml ?? defaultHtml(opts.body, opts.link);
 
   try {
-    await client.emails.send({
+    const resp = await client.emails.send({
       from: FROM,
       to: recipient.email,
       subject,
       html,
     });
+    // Resend's SDK returns errors in the body, not via throw — surface them
+    // so a silent rejection (e.g. unverified sender, blocked recipient)
+    // shows up in logs.
+    if (resp?.error) {
+      console.error(
+        "[notify] resend rejected",
+        { to: recipient.email, subject, error: resp.error },
+      );
+    }
   } catch (err) {
     console.error("[notify] email send failed", err);
   }
