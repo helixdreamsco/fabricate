@@ -10,7 +10,7 @@ import { prisma } from "./prisma";
  * relationship — typo fixes don't need a bump (decide and document each
  * change in your release notes).
  */
-export const TERMS_VERSION = 2;
+export const TERMS_VERSION = 3;
 export const PRIVACY_VERSION = 3;
 
 export type ConsentStatus = {

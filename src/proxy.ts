@@ -92,7 +92,7 @@ export default auth((req) => {
 
 // Mirror src/lib/legal.ts. Duplicated here because middleware runs in Edge
 // runtime and can't import the lib (which pulls in prisma).
-const REQUIRED_TERMS_VERSION = 2;
+const REQUIRED_TERMS_VERSION = 3;
 const REQUIRED_PRIVACY_VERSION = 3;
 const CONSENT_EXEMPT_PATHS = [
   "/legal/accept",
