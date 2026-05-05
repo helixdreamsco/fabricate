@@ -214,7 +214,9 @@ export function CheckoutForm({
               <MonoLabel size="md">
                 Job summary · {draft.analysis.fileName}
               </MonoLabel>
-              <TestModeBadge />
+              {process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ? null : (
+                <TestModeBadge />
+              )}
             </div>
             <h1 className="text-3xl md:text-5xl font-black tracking-tight leading-[1.05] mb-6">
               Post to the open market.
