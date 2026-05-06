@@ -142,6 +142,58 @@ function quoteBlock(text: string): string {
 
 // ── per-event helpers ──────────────────────────────────────────────────────
 
+export function notifyVerifyEmail(args: {
+  email: string;
+  token: string;
+  displayName: string | null;
+}): void {
+  const link = `${appUrl()}/account/verify-email?token=${encodeURIComponent(args.token)}`;
+  const greeting = args.displayName
+    ? `Hey ${escapeHtml(args.displayName)},`
+    : "Hey,";
+  safe(sendEmail({
+    to: args.email,
+    subject: "Verify your Fabricate email",
+    text:
+      `Verify your email to finish creating your Fabricate account.\n\n` +
+      `Open this link (valid for 24 hours):\n${link}\n\n` +
+      `If you didn't sign up, ignore this email — no account is created until you click.`,
+    html:
+      `<p>${greeting}</p>
+       <p>Tap the button below to verify your email and finish creating your Fabricate account. The link is valid for 24 hours.</p>
+       ${ctaButton("Verify email", link)}
+       <p style="font-size:12px;color:rgba(0,0,0,0.55);margin-top:24px">
+         If you didn't sign up for Fabricate, ignore this email — no account is created until you click.
+       </p>`,
+  }));
+}
+
+export function notifyPasswordReset(args: {
+  email: string;
+  token: string;
+  displayName: string | null;
+}): void {
+  const link = `${appUrl()}/account/reset-password?token=${encodeURIComponent(args.token)}`;
+  const greeting = args.displayName
+    ? `Hey ${escapeHtml(args.displayName)},`
+    : "Hey,";
+  safe(sendEmail({
+    to: args.email,
+    subject: "Reset your Fabricate password",
+    text:
+      `Someone (hopefully you) asked to reset your Fabricate password.\n\n` +
+      `Open this link to set a new one (valid for 1 hour):\n${link}\n\n` +
+      `If it wasn't you, ignore this email — your current password still works.`,
+    html:
+      `<p>${greeting}</p>
+       <p>Someone (hopefully you) asked to reset your Fabricate password. Tap the button below to set a new one. The link is valid for one hour.</p>
+       ${ctaButton("Reset password", link)}
+       <p style="font-size:12px;color:rgba(0,0,0,0.55);margin-top:24px">
+         If it wasn't you, ignore this email — your current password still works and the link expires automatically.
+       </p>`,
+  }));
+}
+
 export function notifyJobPrioritized(args: {
   makerEmail: string | null;
   makerDisplayName: string;

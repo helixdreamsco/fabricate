@@ -24,6 +24,10 @@ model User {
   email         String    @unique
   emailVerified DateTime?
   image         String?
+  // bcrypt hash for users who signed up via email/password. Null for
+  // users who signed up via Google OAuth — they can later add a password
+  // by going through the password-reset flow.
+  passwordHash  String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -85,6 +89,26 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+/**
+ * Single token store for email/password auth flows — both email
+ * verification (purpose="verify_email") and password reset
+ * (purpose="reset_password"). Tokens are 32-byte random hex,
+ * single-use (consumed = true after redemption), and time-bounded.
+ */
+model AuthToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  // "verify_email" | "reset_password"
+  purpose   String
+  expires   DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([purpose, email])
 }
 
 // ──────────────────────────────────────────────────────────────

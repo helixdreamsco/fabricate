@@ -1,8 +1,10 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./lib/prisma";
 import { authConfig } from "./auth.config";
+import { verifyPassword } from "./lib/passwords";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -13,6 +15,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.AUTH_GOOGLE_ID,
       clientSecret: process.env.AUTH_GOOGLE_SECRET,
       authorization: { params: { prompt: "select_account" } },
+    }),
+    Credentials({
+      // Email + password sign-in for users who don't / won't use Google.
+      // Sign-up happens via /api/auth/signup (which seeds the User row +
+      // sends a verification email). This provider only handles the
+      // sign-in step: look up by email, verify the bcrypt hash, refuse
+      // if the email isn't yet verified.
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      authorize: async (raw) => {
+        const email =
+          typeof raw?.email === "string" ? raw.email.trim().toLowerCase() : "";
+        const password =
+          typeof raw?.password === "string" ? raw.password : "";
+        if (!email || !password) return null;
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || !user.passwordHash) return null;
+        const ok = await verifyPassword(password, user.passwordHash);
+        if (!ok) return null;
+        if (!user.emailVerified) {
+          // Throw a known string so the client can show the "verify your
+          // email first" prompt instead of "wrong password".
+          throw new Error("EMAIL_NOT_VERIFIED");
+        }
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+        };
+      },
     }),
   ],
   callbacks: {
