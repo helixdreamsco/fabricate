@@ -19,6 +19,7 @@ export const MATERIALS: Material[] = [
     pricePerGramGbp: 0.085,
     badge: "Most popular",
     colors: [
+      { name: "Fabricate purple", hex: "#7c3aed" },
       { name: "Obsidian", hex: "#0a0a0a" },
       { name: "Bone", hex: "#f5f2ec" },
       { name: "Signal red", hex: "#ef4444" },
