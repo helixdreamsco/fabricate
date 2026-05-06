@@ -9,6 +9,7 @@ import {
   consentStatusFor,
 } from "@/lib/legal";
 import { ConsentForm } from "./ConsentForm";
+import { RefreshSessionAndGo } from "./RefreshSessionAndGo";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +22,19 @@ export default async function AcceptPage({ searchParams }: Search) {
   const sp = (await searchParams) ?? {};
   const next = typeof sp.next === "string" && sp.next.startsWith("/") ? sp.next : "/";
 
-  // Already up to date — bounce.
-  if (!status.needsAny) redirect(next);
+  // DB says you've accepted, but the proxy still bounced you here — that
+  // means your JWT is stale (you accepted on another browser / device).
+  // A bare server-redirect would loop with middleware; refresh the JWT
+  // client-side first, then hard-nav with the fresh cookie.
+  if (!status.needsAny) {
+    return (
+      <RefreshSessionAndGo
+        next={next}
+        termsVersion={TERMS_VERSION}
+        privacyVersion={PRIVACY_VERSION}
+      />
+    );
+  }
 
   return (
     <div className="flex-1 bg-grid-none flex items-center justify-center py-16">
