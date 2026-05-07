@@ -107,7 +107,7 @@ export function MobileMenu(props: Props) {
                   signedIn={props.signedIn}
                 />
 
-                <div className="flex-1 min-h-0 overflow-y-auto py-2">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-2 [-webkit-overflow-scrolling:touch]">
                   {props.signedIn ? (
                     <SignedInGroups
                       isMaker={props.isMaker}

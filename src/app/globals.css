@@ -243,3 +243,10 @@ input[type="range"].thin::-moz-range-thumb {
   padding: 0.1rem 0.3rem;
   border-radius: 0.25rem;
 }
+
+/* Cap leaflet to its own stacking context so its internal z-index ladder
+   (panes/markers/controls up to ~800) can never paint above the mobile
+   menu drawer portal. */
+.leaflet-container {
+  isolation: isolate;
+}
