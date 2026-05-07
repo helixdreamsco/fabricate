@@ -1,14 +1,18 @@
 /**
  * Aggregate demand-vs-supply metrics for the maker dashboard.
  *
- * Window: last 30 days of jobs. Privacy posture: aggregate counts only,
- * with a 3-job minimum before any per-material category surfaces in the
- * UI. Never exposes individual job titles, file names, or creator
- * identities — strictly counts.
+ * Demand: jobs *requested* in the last 30 days (count by primary
+ * material).
+ * Supply: bids *accepted* in the last 30 days on jobs of that primary
+ * material — i.e. fulfilled supply, not theoretical printer capacity.
  *
- * The maker-specific helper additionally filters to gaps the *signed-in
- * maker* could fill — i.e. an under-served category they don't currently
- * stock or serve.
+ * The ratio (demand / supply) measures unfilled demand: 1.0 means the
+ * market is clearing in that category, >1.0 means jobs are coming in
+ * faster than makers are taking them. That's the real signal a maker
+ * cares about.
+ *
+ * Privacy posture: aggregate counts only, with a 3-job minimum before
+ * any per-material category surfaces in the UI.
  */
 
 import { prisma } from "./prisma";
@@ -22,26 +26,21 @@ const MATERIAL_KEYS: MaterialKey[] = ["PLA", "PETG", "ABS", "TPU"];
 
 export type MaterialDemand = {
   material: MaterialKey;
-  /** Recent jobs requesting this material as the primary OR an alternative. */
+  /** Jobs created in the window with this primary material. */
   jobsLast30d: number;
-  /** Distinct active makers whose printer materials include this key. */
-  activeMakers: number;
-  /**
-   * Demand pressure ratio: jobs / makers. Higher = more under-served. We
-   * also compute a per-maker ratio downstream for ranking.
-   */
+  /** Bids accepted in the window on jobs with this primary material. */
+  acceptedBidsLast30d: number;
+  /** Demand pressure: jobs / max(1, acceptedBids). 1.0 = clearing. */
   ratio: number;
 };
 
 export type AmsDemand = {
-  /** Jobs that flagged isMultiMaterial=true in the window. */
+  /** Jobs in the window flagged isMultiMaterial=true. */
   multiMaterialJobsLast30d: number;
   /** Total jobs in the window. */
   totalJobsLast30d: number;
-  /** Active makers with at least one AMS-equipped printer. */
-  amsMakers: number;
-  /** Active makers total. */
-  totalMakers: number;
+  /** Accepted bids in the window on multi-material jobs. */
+  acceptedMultiMaterialBidsLast30d: number;
 };
 
 export type DemandInsights = {
@@ -51,85 +50,57 @@ export type DemandInsights = {
   hasEnoughSignal: boolean;
 };
 
-function parseAlts(raw: string | null | undefined): string[] {
-  try {
-    const v = JSON.parse(raw ?? "[]");
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
 export async function computeDemandInsights(): Promise<DemandInsights> {
   const since = new Date(Date.now() - WINDOW_MS);
 
-  // Pull only what we need; the analysis is in-memory but small.
-  const [recentJobs, activeProfiles, allProfiles] = await Promise.all([
+  const [recentJobs, acceptedBids] = await Promise.all([
     prisma.job.findMany({
       where: { createdAt: { gte: since } },
+      select: { material: true, isMultiMaterial: true },
+    }),
+    prisma.jobBid.findMany({
+      where: { status: "ACCEPTED", updatedAt: { gte: since } },
       select: {
-        material: true,
-        materialAlternatives: true,
-        isMultiMaterial: true,
+        job: { select: { material: true, isMultiMaterial: true } },
       },
     }),
-    prisma.makerProfile.findMany({
-      where: { printers: { some: { active: true } } },
-      select: {
-        id: true,
-        printers: { where: { active: true }, select: { materials: true, hasAMS: true } },
-      },
-    }),
-    prisma.makerProfile.count(),
   ]);
 
-  // Per-material counts.
-  const materialJobCount = new Map<string, number>();
+  const jobsByMaterial = new Map<string, number>();
   for (const j of recentJobs) {
-    const set = new Set<string>([j.material, ...parseAlts(j.materialAlternatives)]);
-    for (const k of set) {
-      materialJobCount.set(k, (materialJobCount.get(k) ?? 0) + 1);
-    }
+    jobsByMaterial.set(j.material, (jobsByMaterial.get(j.material) ?? 0) + 1);
   }
 
-  const materialMakerCount = new Map<string, number>();
-  let amsMakers = 0;
-  for (const p of activeProfiles) {
-    const stocked = new Set<string>();
-    let hasAms = false;
-    for (const pr of p.printers) {
-      if (pr.hasAMS) hasAms = true;
-      for (const m of parsePrinterMaterials(pr.materials)) stocked.add(m);
-    }
-    if (hasAms) amsMakers += 1;
-    for (const k of stocked) {
-      materialMakerCount.set(k, (materialMakerCount.get(k) ?? 0) + 1);
-    }
+  const acceptedByMaterial = new Map<string, number>();
+  let acceptedMultiMaterial = 0;
+  for (const b of acceptedBids) {
+    const mat = b.job.material;
+    acceptedByMaterial.set(mat, (acceptedByMaterial.get(mat) ?? 0) + 1);
+    if (b.job.isMultiMaterial) acceptedMultiMaterial += 1;
   }
 
   const materials: MaterialDemand[] = MATERIAL_KEYS.map((m) => {
-    const jobs = materialJobCount.get(m) ?? 0;
-    const makers = materialMakerCount.get(m) ?? 0;
+    const jobs = jobsByMaterial.get(m) ?? 0;
+    const accepted = acceptedByMaterial.get(m) ?? 0;
     return {
       material: m,
       jobsLast30d: jobs,
-      activeMakers: makers,
-      ratio: makers === 0 ? jobs : jobs / makers,
+      acceptedBidsLast30d: accepted,
+      ratio: jobs / Math.max(1, accepted),
     };
   });
 
+  const totalJobs = recentJobs.length;
   const multi = recentJobs.filter((j) => j.isMultiMaterial).length;
-  const total = recentJobs.length;
 
   return {
     materials,
     ams: {
       multiMaterialJobsLast30d: multi,
-      totalJobsLast30d: total,
-      amsMakers,
-      totalMakers: allProfiles,
+      totalJobsLast30d: totalJobs,
+      acceptedMultiMaterialBidsLast30d: acceptedMultiMaterial,
     },
-    hasEnoughSignal: total >= MIN_JOBS_THRESHOLD,
+    hasEnoughSignal: totalJobs >= MIN_JOBS_THRESHOLD,
   };
 }
 
@@ -143,15 +114,12 @@ export type MakerActionableGap =
       kind: "material";
       material: MaterialKey;
       jobsLast30d: number;
-      activeMakers: number;
-      makerStocks: boolean;
+      acceptedBidsLast30d: number;
     }
   | {
       kind: "ams";
       multiMaterialJobsLast30d: number;
-      amsMakers: number;
-      totalMakers: number;
-      makerHasAms: boolean;
+      acceptedMultiMaterialBidsLast30d: number;
     };
 
 export async function computeMakerActionableGaps(opts: {
@@ -176,15 +144,15 @@ export async function computeMakerActionableGaps(opts: {
 
   const gaps: MakerActionableGap[] = [];
 
-  // Surface materials with ≥3 jobs and a high jobs:makers ratio that the
-  // maker doesn't currently stock. Sorted by under-servedness.
+  // Surface materials with ≥3 jobs, demand > supply, and the maker
+  // doesn't currently stock. Sort by under-servedness (highest ratio).
   const materialGaps = insights.materials
-    .filter((m) => m.jobsLast30d >= MIN_JOBS_THRESHOLD)
-    .map((m) => ({
-      ...m,
-      makerStocks: makerStocked.has(m.material),
-    }))
-    .filter((m) => !m.makerStocks)
+    .filter(
+      (m) =>
+        m.jobsLast30d >= MIN_JOBS_THRESHOLD &&
+        m.jobsLast30d > m.acceptedBidsLast30d &&
+        !makerStocked.has(m.material),
+    )
     .sort((a, b) => b.ratio - a.ratio);
 
   for (const m of materialGaps.slice(0, 3)) {
@@ -192,26 +160,24 @@ export async function computeMakerActionableGaps(opts: {
       kind: "material",
       material: m.material,
       jobsLast30d: m.jobsLast30d,
-      activeMakers: m.activeMakers,
-      makerStocks: false,
+      acceptedBidsLast30d: m.acceptedBidsLast30d,
     });
   }
 
-  // AMS gap: only if it's a meaningful share of demand and the maker
-  // doesn't already have one.
-  const { multiMaterialJobsLast30d, amsMakers, totalMakers, totalJobsLast30d } =
+  // AMS gap: only if multi-material jobs are ≥15% of recent demand AND
+  // demand outpaces supply AND the maker doesn't already have an AMS.
+  const { multiMaterialJobsLast30d, acceptedMultiMaterialBidsLast30d, totalJobsLast30d } =
     insights.ams;
   if (
     multiMaterialJobsLast30d >= MIN_JOBS_THRESHOLD &&
     multiMaterialJobsLast30d / Math.max(1, totalJobsLast30d) >= 0.15 &&
+    multiMaterialJobsLast30d > acceptedMultiMaterialBidsLast30d &&
     !makerHasAms
   ) {
     gaps.push({
       kind: "ams",
       multiMaterialJobsLast30d,
-      amsMakers,
-      totalMakers,
-      makerHasAms: false,
+      acceptedMultiMaterialBidsLast30d,
     });
   }
 

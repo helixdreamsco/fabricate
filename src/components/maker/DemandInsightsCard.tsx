@@ -69,9 +69,10 @@ export async function DemandInsightsCard({ makerId }: { makerId: string }) {
         </Link>
       </div>
       <div className="text-[12px] font-light text-black/55 leading-relaxed mb-3">
-        Categories with more demand than supply over the last 30 days that you
-        don&rsquo;t currently serve. Adding any of these to your printer setup
-        would put you in front of jobs no other maker can take.
+        Categories where jobs are coming in faster than makers are taking
+        them, and you don&rsquo;t currently serve. Adding any to your printer
+        setup would put you in front of demand the market isn&rsquo;t
+        clearing.
       </div>
       <ul className="flex flex-col gap-2">
         {gaps.map((g, i) => (
@@ -89,6 +90,7 @@ export async function DemandInsightsCard({ makerId }: { makerId: string }) {
 
 function GapRow({ gap }: { gap: MakerActionableGap }) {
   if (gap.kind === "material") {
+    const unfilled = gap.jobsLast30d - gap.acceptedBidsLast30d;
     return (
       <div className="flex items-start gap-3 px-3 py-2 rounded-lg border border-black/[0.08] bg-black/[0.02]">
         <div className="w-7 h-7 rounded-full bg-[#7c3aed]/[0.10] text-[#7c3aed] flex items-center justify-center font-mono text-[10px] font-bold tracking-[0.04em] shrink-0 mt-0.5">
@@ -96,20 +98,20 @@ function GapRow({ gap }: { gap: MakerActionableGap }) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium">
-            {gap.material} demand exceeds supply
+            {gap.material} demand outpacing supply
           </div>
           <div className="text-[12px] font-light text-black/55 mt-0.5 leading-snug">
-            {gap.jobsLast30d} job{gap.jobsLast30d === 1 ? "" : "s"} in the last
-            30 days needed {gap.material}, and{" "}
-            {gap.activeMakers === 0
-              ? "no makers currently stock it"
-              : `only ${gap.activeMakers} maker${gap.activeMakers === 1 ? "" : "s"} stock${gap.activeMakers === 1 ? "s" : ""} it`}
-            .
+            {gap.jobsLast30d} job{gap.jobsLast30d === 1 ? "" : "s"} requested
+            in the last 30 days, only {gap.acceptedBidsLast30d} bid
+            {gap.acceptedBidsLast30d === 1 ? "" : "s"} accepted —{" "}
+            {unfilled} unfilled. You don&rsquo;t currently stock {gap.material}.
           </div>
         </div>
       </div>
     );
   }
+  const unfilled =
+    gap.multiMaterialJobsLast30d - gap.acceptedMultiMaterialBidsLast30d;
   return (
     <div className="flex items-start gap-3 px-3 py-2 rounded-lg border border-black/[0.08] bg-black/[0.02]">
       <div className="w-7 h-7 rounded-full bg-[#7c3aed]/[0.10] text-[#7c3aed] flex items-center justify-center font-mono text-[10px] font-bold tracking-[0.04em] shrink-0 mt-0.5">
@@ -117,14 +119,13 @@ function GapRow({ gap }: { gap: MakerActionableGap }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium">
-          Multi-material / AMS demand outpaces supply
+          Multi-material demand outpacing supply
         </div>
         <div className="text-[12px] font-light text-black/55 mt-0.5 leading-snug">
           {gap.multiMaterialJobsLast30d} multi-material job
-          {gap.multiMaterialJobsLast30d === 1 ? "" : "s"} landed in the last 30
-          days, and only {gap.amsMakers} of {gap.totalMakers} active maker
-          {gap.totalMakers === 1 ? "" : "s"} have an AMS / multi-material
-          printer.
+          {gap.multiMaterialJobsLast30d === 1 ? "" : "s"} requested in the last
+          30 days, only {gap.acceptedMultiMaterialBidsLast30d} accepted —{" "}
+          {unfilled} unfilled. You don&rsquo;t have an AMS-equipped printer.
         </div>
       </div>
     </div>
