@@ -92,21 +92,31 @@ export function CheckoutForm({
   // Seed the editable price field from the auto-quote on first render. STEP
   // files start blank (no auto-estimate possible) — creator must type a
   // value before submit is enabled.
+  //
+  // The seed must NOT round down — quote.total often has float drift like
+  // 7.285. toFixed(2) → "7.28" → parseFloat → 7.28 < 7.285 → validPrice
+  // false until the user manually bumps to 7.29. Round-up at the seed and
+  // compare in pence (integers) so float comparisons can never bite.
+  const minPricePence = isStep ? 0 : Math.ceil(quote.total * 100);
   React.useEffect(() => {
-    if (pricePounds === "" && !isStep && quote.total > 0) {
-      setPricePounds(quote.total.toFixed(2));
+    if (pricePounds === "" && !isStep && minPricePence > 0) {
+      setPricePounds((minPricePence / 100).toFixed(2));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote.total, isStep]);
+  }, [minPricePence, isStep]);
 
   const parsedPrice = parseFloat(pricePounds);
+  const parsedPricePence = Number.isFinite(parsedPrice)
+    ? Math.round(parsedPrice * 100)
+    : 0;
   // Auto-estimate is the floor for STL/3MF inputs. STEP files don't get an
-  // estimate so the user-entered price is the floor (must be > 0).
-  const minPrice = isStep ? 0 : quote.total;
+  // estimate so the user-entered price is the floor (must be > 0). Compare
+  // in pence to defeat float drift.
+  const minPrice = minPricePence / 100;
   const validPrice =
     Number.isFinite(parsedPrice) &&
-    parsedPrice > 0 &&
-    (isStep || parsedPrice >= minPrice);
+    parsedPricePence > 0 &&
+    (isStep || parsedPricePence >= minPricePence);
   const effectivePrice = validPrice ? parsedPrice : quote.total;
 
   const material = MATERIALS.find((m) => m.key === draft.material)!;
@@ -289,7 +299,7 @@ export function CheckoutForm({
                   <input
                     type="number"
                     min={isStep ? 0.5 : minPrice}
-                    step={0.5}
+                    step={1}
                     inputMode="decimal"
                     required
                     value={pricePounds}

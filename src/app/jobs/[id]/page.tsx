@@ -230,6 +230,14 @@ export default async function JobDetailPage({ params }: Params) {
                   </div>
                 </div>
               ) : null}
+              {job.colorMatters ? (
+                <div className="mt-4 border-t border-black/[0.06] pt-3">
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2.5 text-[12px] font-light text-amber-900 leading-snug">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] font-bold mr-2">Heads-up · colour</span>
+                    Filament colours rarely match an exact reference out of the box. Expect minor variation between brands and batches; for a precise finish (matching paint, brand-spec colour, etc.) the maker may need to sand, prime and paint after printing — that&rsquo;s extra time you&rsquo;ll want to discuss in chat before they start.
+                  </div>
+                </div>
+              ) : null}
               {job.notes ? (
                 <div className="mt-4 text-sm font-light text-black/70 whitespace-pre-wrap border-t border-black/[0.06] pt-3">
                   {job.notes}

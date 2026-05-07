@@ -57,6 +57,30 @@ export function CreatorBidPanel({
   const [err, setErr] = React.useState<string | null>(null);
   const [payingFor, setPayingFor] = React.useState<BidRow | null>(null);
 
+  // Live bid feed via the existing per-job SSE bus. The bus already emits
+  // `event:new` for every recordJobEvent call (incl. bid_placed from both
+  // manual /bids POSTs and the maker-subscription auto-bid path), so we
+  // just re-fetch the server-rendered job page when one lands. router.refresh
+  // re-runs the server component which fetches the fresh bid list.
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof EventSource === "undefined") return;
+    const es = new EventSource(`/api/jobs/${jobId}/stream`);
+    es.addEventListener("message", (ev: MessageEvent) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (
+          data?.type === "event:new" &&
+          (data.event?.kind === "bid_placed" || data.event?.kind === "bid_accepted")
+        ) {
+          router.refresh();
+        }
+      } catch {
+        // ignore malformed events
+      }
+    });
+    return () => es.close();
+  }, [jobId, router]);
+
   // Picked up by Next at build time / runtime via the NEXT_PUBLIC_ prefix.
   // Empty string means we'll fall back to sim flow even if the server is in
   // live mode (defensive — should never happen if env is set correctly).
