@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
+import { BackLink } from "@/components/shell/BackLink";
 import { paymentMode } from "@/lib/payments";
 import { StartIdentityButton } from "./StartIdentityButton";
 
@@ -25,6 +26,7 @@ export default async function MakerVerificationPage() {
   return (
     <div className="flex-1 bg-grid-none">
       <div className="max-w-[720px] mx-auto px-5 md:px-8 py-8">
+        <BackLink href="/maker" label="Back to dashboard" />
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/45 mb-2">
           Maker · Verification
         </div>

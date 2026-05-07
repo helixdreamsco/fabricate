@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { MonoLabel } from "@/components/ui/MonoLabel";
+import { BackLink } from "@/components/shell/BackLink";
 import { AlertsForm } from "./AlertsForm";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,7 @@ export default async function MakerAlertsPage() {
   return (
     <div className="flex-1 bg-grid-none">
       <div className="max-w-[820px] mx-auto px-5 md:px-8 py-8 md:py-10">
+        <BackLink href="/maker" label="Back to dashboard" />
         <MonoLabel size="md" className="block mb-2">
           Maker · Alerts &amp; auto-bid
         </MonoLabel>

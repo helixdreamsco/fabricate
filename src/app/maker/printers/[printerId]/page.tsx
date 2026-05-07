@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
-import { ArrowLeft, Settings, Layers } from "lucide-react";
+import { Settings, Layers } from "lucide-react";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { MonoLabel } from "@/components/ui/MonoLabel";
+import { BackLink } from "@/components/shell/BackLink";
 import { PRINTER_MODELS, fullName } from "@/lib/printer-models";
 import { parsePrinterMaterials } from "@/lib/printers";
 import { PrinterIllustration } from "@/components/maker/PrinterIllustration";
@@ -47,12 +48,7 @@ export default async function PrinterDetailPage({
   return (
     <div className="flex-1 bg-grid-none">
       <div className="max-w-[960px] mx-auto px-5 md:px-8 py-8 md:py-10">
-        <Link
-          href="/maker/profile"
-          className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-black/55 hover:text-black mb-6"
-        >
-          <ArrowLeft className="w-3 h-3" /> Back to maker profile
-        </Link>
+        <BackLink href="/maker/profile" label="Back to maker profile" />
 
         {/* Header — illustration + identity */}
         <Card className="overflow-hidden mb-5">

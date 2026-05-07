@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { MaterialKey } from "@/lib/catalog";
+import { BackLink } from "@/components/shell/BackLink";
 import { ProfileForm } from "./ProfileForm";
 
 function parseMaterials(s: string | null): MaterialKey[] {
@@ -28,6 +29,7 @@ export default async function MakerProfilePage() {
   return (
     <div className="flex-1 bg-grid-none">
       <div className="max-w-[720px] mx-auto px-5 md:px-8 py-8 md:py-10">
+        <BackLink href="/maker" label="Back to dashboard" />
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/45 mb-3">
           Maker · profile
         </div>

@@ -10,6 +10,7 @@ import { listMakerReviews, makerRatingAggregate } from "@/lib/reviews";
 import { parsePrinterMaterials } from "@/lib/printers";
 import { pickPrimaryPrinter } from "@/lib/maker-profile";
 import { Star } from "lucide-react";
+import { BackLink } from "@/components/shell/BackLink";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,10 @@ export default async function PublicMakerProfilePage({ params }: Params) {
   return (
     <div className="flex-1 bg-grid-none">
       <div className="max-w-[900px] mx-auto px-5 md:px-8 py-8">
+        <BackLink
+          href={isOwner ? "/maker" : "/makers"}
+          label={isOwner ? "Back to dashboard" : "Back to makers"}
+        />
         <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/45 mb-2">
           Maker
         </div>

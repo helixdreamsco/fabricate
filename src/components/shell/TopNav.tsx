@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ModeToggle } from "./ModeToggle";
 import { NotificationBell } from "./NotificationBell";
 import { HelixLogo } from "./HelixLogo";
+import { MobileMenu } from "./MobileMenu";
 
 export async function TopNav() {
   const session = await auth();
@@ -93,7 +94,7 @@ export async function TopNav() {
           {user ? (
             <Link
               href="/account"
-              className="inline-flex items-center gap-2 h-8 pl-1 pr-3 rounded-full border border-black/15 bg-white hover:bg-black/[0.04] transition-colors"
+              className="hidden md:inline-flex items-center gap-2 h-8 pl-1 pr-3 rounded-full border border-black/15 bg-white hover:bg-black/[0.04] transition-colors"
             >
               {user.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -115,7 +116,7 @@ export async function TopNav() {
           ) : (
             <Link
               href="/account"
-              className="inline-flex items-center gap-2 h-8 pl-3 pr-3 rounded-full border border-black/15 bg-white hover:bg-black/[0.04] transition-colors"
+              className="hidden md:inline-flex items-center gap-2 h-8 pl-3 pr-3 rounded-full border border-black/15 bg-white hover:bg-black/[0.04] transition-colors"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" />
               <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0a0a0a]">
@@ -123,6 +124,13 @@ export async function TopNav() {
               </span>
             </Link>
           )}
+          <MobileMenu
+            signedIn={!!user}
+            isMaker={isMaker}
+            userName={user?.name ?? null}
+            userEmail={user?.email ?? null}
+            userImage={user?.image ?? null}
+          />
         </div>
       </div>
     </header>
