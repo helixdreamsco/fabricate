@@ -21,7 +21,12 @@ import { parsePrinterMaterials } from "./printers";
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 const MIN_JOBS_THRESHOLD = 3;
 
-export type MaterialKey = "PLA" | "PETG" | "ABS" | "TPU";
+/**
+ * Canonical material keys we always render in the mix, even when count
+ * is zero. Other materials (e.g. NYLON) join the list dynamically when
+ * they appear in the data.
+ */
+export type MaterialKey = string;
 const MATERIAL_KEYS: MaterialKey[] = ["PLA", "PETG", "ABS", "TPU"];
 
 export type MaterialDemand = {
@@ -79,7 +84,14 @@ export async function computeDemandInsights(): Promise<DemandInsights> {
     if (b.job.isMultiMaterial) acceptedMultiMaterial += 1;
   }
 
-  const materials: MaterialDemand[] = MATERIAL_KEYS.map((m) => {
+  // Union of materials seen in either jobs or accepted bids — covers any
+  // material strings outside the canonical four (e.g. NYLON, RESIN).
+  const allMaterialKeys = new Set<string>([
+    ...MATERIAL_KEYS,
+    ...jobsByMaterial.keys(),
+    ...acceptedByMaterial.keys(),
+  ]);
+  const materials: MaterialDemand[] = Array.from(allMaterialKeys).map((m) => {
     const jobs = jobsByMaterial.get(m) ?? 0;
     const accepted = acceptedByMaterial.get(m) ?? 0;
     return {
