@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -38,7 +39,13 @@ type NavItem = {
 
 export function MobileMenu(props: Props) {
   const [open, setOpen] = React.useState(false);
+  const [mounted, setMounted] = React.useState(false);
   const pathname = usePathname() ?? "/";
+
+  // Track mount so we can portal — body isn't accessible during SSR.
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on route change.
   React.useEffect(() => {
@@ -77,40 +84,46 @@ export function MobileMenu(props: Props) {
         <Menu className="w-[18px] h-[18px]" strokeWidth={2.2} />
       </button>
 
-      {open ? (
-        <div className="fixed inset-0 z-[9999] md:hidden h-[100dvh]">
-          <button
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-            className="absolute inset-0 bg-black/35 backdrop-blur-sm cursor-default"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Site menu"
-            className="absolute right-0 top-0 w-[88vw] max-w-[360px] h-[100dvh] bg-white shadow-2xl flex flex-col"
-          >
-            <Header
-              onClose={() => setOpen(false)}
-              userName={props.userName}
-              userEmail={props.userEmail}
-              userImage={props.userImage}
-              signedIn={props.signedIn}
-            />
+      {mounted && open
+        ? createPortal(
+            <div className="fixed inset-0 z-[9999] md:hidden h-[100dvh]">
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setOpen(false)}
+                className="absolute inset-0 bg-black/35 backdrop-blur-sm cursor-default"
+              />
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Site menu"
+                className="absolute right-0 top-0 w-[88vw] max-w-[360px] h-[100dvh] bg-white shadow-2xl flex flex-col"
+              >
+                <Header
+                  onClose={() => setOpen(false)}
+                  userName={props.userName}
+                  userEmail={props.userEmail}
+                  userImage={props.userImage}
+                  signedIn={props.signedIn}
+                />
 
-            <div className="flex-1 min-h-0 overflow-y-auto py-2">
-              {props.signedIn ? (
-                <SignedInGroups isMaker={props.isMaker} pathname={pathname} />
-              ) : (
-                <SignedOutGroup pathname={pathname} />
-              )}
-            </div>
+                <div className="flex-1 min-h-0 overflow-y-auto py-2">
+                  {props.signedIn ? (
+                    <SignedInGroups
+                      isMaker={props.isMaker}
+                      pathname={pathname}
+                    />
+                  ) : (
+                    <SignedOutGroup pathname={pathname} />
+                  )}
+                </div>
 
-            <Footer signedIn={props.signedIn} />
-          </div>
-        </div>
-      ) : null}
+                <Footer signedIn={props.signedIn} />
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
