@@ -284,10 +284,40 @@ model Printer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bids JobBid[]
+  bids   JobBid[]
+  spools FilamentSpool[]
 
   @@index([makerId, priority])
   @@index([makerId, active])
+}
+
+// A single filament roll loaded on (or available for) a printer. Captures
+// the material, brand, and colour the maker can actually deliver — feeds
+// the colour-aware bid matching downstream and the inventory view.
+model FilamentSpool {
+  id        String  @id @default(cuid())
+  printerId String
+  printer   Printer @relation(fields: [printerId], references: [id], onDelete: Cascade)
+
+  // Material key (PLA / PETG / ABS / TPU / ...) — free string so we don't
+  // block on adding NYLON / ASA / PC / etc. when a maker has them.
+  material String
+  // Filament brand, free text (e.g. "Bambu Lab Basic", "Polymaker PolyTerra").
+  brand    String?
+  // Human colour name the maker uses for the spool.
+  colorName String
+  // Hex string "#RRGGBB" — what we match creator colour requests against.
+  colorHex String
+
+  // IN_STOCK | LOW | EMPTY. Empty stays in the list so swapping a spool
+  // back to In stock is one click.
+  status String  @default("IN_STOCK")
+  notes  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([printerId])
 }
 
 // Maker's per-job action: SAVED (bookmarked for later) or HIDDEN

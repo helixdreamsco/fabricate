@@ -1,7 +1,8 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronUp, ChevronDown, Trash2, Plus } from "lucide-react";
+import Link from "next/link";
+import { ChevronUp, ChevronDown, Trash2, Plus, ArrowUpRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PrinterModelSearch } from "@/components/maker/PrinterModelSearch";
 import { MATERIALS, type MaterialKey } from "@/lib/catalog";
@@ -290,6 +291,21 @@ export function ProfileForm({ initial }: { initial: Initial | null }) {
                 Active — accepting jobs
               </span>
             </label>
+
+            {p.id ? (
+              <div className="pt-2 border-t border-black/[0.06]">
+                <Link
+                  href={`/maker/printers/${p.id}`}
+                  className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-black/65 hover:text-black underline underline-offset-4"
+                >
+                  Manage filament inventory <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              </div>
+            ) : (
+              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/35 pt-2 border-t border-black/[0.06]">
+                Save first to manage filament inventory for this printer.
+              </p>
+            )}
           </div>
         ))}
 
