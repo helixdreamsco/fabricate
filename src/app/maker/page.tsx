@@ -86,6 +86,11 @@ export default async function MakerDashboardPage() {
                 {profile.stripeOnboarded ? "Payouts" : "Connect payouts"}
               </Button>
             </Link>
+            <Link href="/maker/alerts">
+              <Button size="md" variant="secondary">
+                Alerts &amp; auto-bid
+              </Button>
+            </Link>
           </div>
         </div>
 

@@ -150,6 +150,19 @@ export async function POST(req: Request) {
     }
   }
 
+  // Fan out alerts + auto-bid to subscribed makers. Fire-and-forget —
+  // a slow / failing evaluation must not block the creator's job-post
+  // response. Errors are logged inside evaluateSubscriptions.
+  void (async () => {
+    try {
+      const { evaluateSubscriptions } = await import("@/lib/maker-subscription");
+      await evaluateSubscriptions({ jobId: job.id });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[jobs] subscription fan-out failed", err);
+    }
+  })();
+
   return NextResponse.json({ job });
 }
 

@@ -207,6 +207,54 @@ model MakerProfile {
   bookmarks       MakerJobBookmark[]
   verification    MakerVerification?
   printers        Printer[]
+  subscription    MakerSubscription?
+}
+
+/**
+ * Per-maker matching configuration: when does the maker want to be
+ * alerted about a new OPEN job, and when (if ever) should the platform
+ * place a bid on their behalf? Defaults skew toward "alerts on, auto-bid
+ * off" — alerting is a passive, non-financial signal so opt-out is
+ * reasonable; auto-bidding moves real money so opt-in is mandatory.
+ *
+ * The same row carries both subscription kinds because they share most
+ * of their criteria (distance, material strictness) and they're always
+ * configured together on /maker/alerts.
+ */
+model MakerSubscription {
+  id      String       @id @default(cuid())
+  makerId String       @unique
+  maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+
+  // ── Job alerts ───────────────────────────────────────────────────────
+  alertsEnabled      Boolean @default(true)
+  alertsEmailEnabled Boolean @default(true)
+  alertsRadiusKm     Int     @default(25)
+  alertsGlobal       Boolean @default(false)
+  /// "strict" | "primary_or_alt" | "firehose"
+  alertsStrictness   String  @default("primary_or_alt")
+  /// "HH:MM" 24h, optional. When both set, alerts inside that window are suppressed (still fire in-app, never email).
+  alertsQuietStart   String?
+  alertsQuietEnd     String?
+
+  // ── Auto-bid ─────────────────────────────────────────────────────────
+  autoBidEnabled            Boolean @default(false)
+  autoBidUseAlertsCoverage  Boolean @default(true)
+  autoBidRadiusKm           Int     @default(25)
+  autoBidGlobal             Boolean @default(false)
+  autoBidStrictness         String  @default("primary_or_alt")
+  /// "match_listed" | "undercut_pct" | "fixed_offset"
+  autoBidStrategy           String  @default("match_listed")
+  autoBidUndercutPct        Int     @default(5)
+  autoBidFixedOffsetPence   Int     @default(50)
+  /// Maker's own per-bid floor in pence. Bid is skipped if the strategy would land below this.
+  autoBidMakerFloorPence    Int     @default(500)
+  autoBidEtaHours           Int     @default(48)
+  autoBidMessage            String?
+  autoBidBadgeVisible       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // A single printer in a maker's setup. Makers can list multiple, each with

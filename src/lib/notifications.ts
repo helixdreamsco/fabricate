@@ -142,6 +142,36 @@ function quoteBlock(text: string): string {
 
 // ── per-event helpers ──────────────────────────────────────────────────────
 
+export function notifyJobMatchAlert(args: {
+  recipientEmail: string | null;
+  recipientDisplayName: string;
+  jobId: string;
+  fileName: string;
+  quotedPricePence: number;
+  material: string;
+}): void {
+  safe(sendEmail({
+    to: args.recipientEmail,
+    subject: `New Fabricate job matches your alert — ${args.fileName}`,
+    text:
+      `A new job matches your alert criteria.\n` +
+      `${args.fileName} · ${args.material} · ${formatGbp(args.quotedPricePence)}\n` +
+      `View it: ${jobUrl(args.jobId)}`,
+    html:
+      `<p>Hey ${escapeHtml(args.recipientDisplayName)},</p>
+       <p>A new job just landed in the open market that matches your alert criteria.</p>
+       <p style="margin:16px 0;font-family:'Space Mono',ui-monospace,monospace;font-size:14px">
+         <strong>${escapeHtml(args.fileName)}</strong><br>
+         ${escapeHtml(args.material)} · <strong>${formatGbp(args.quotedPricePence)}</strong>
+       </p>
+       <p>Be quick — first bid often wins.</p>
+       ${ctaButton("View & bid", jobUrl(args.jobId))}
+       <p style="font-size:12px;color:rgba(0,0,0,0.55);margin-top:24px">
+         Adjust your alert preferences at <a href="${appUrl()}/maker/alerts">${appUrl()}/maker/alerts</a>.
+       </p>`,
+  }));
+}
+
 export function notifyVerifyEmail(args: {
   email: string;
   token: string;
