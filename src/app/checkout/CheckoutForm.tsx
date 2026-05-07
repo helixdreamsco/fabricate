@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Star } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Star, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { MonoLabel } from "@/components/ui/MonoLabel";
@@ -284,6 +284,26 @@ export function CheckoutForm({
                 <Spec label="Quantity" value={String(draft.quantity)} />
                 <Spec label="Estimated time" value={formatDuration((draft.serverQuote?.quote.time_minutes ?? 0) / 60)} />
               </dl>
+
+              {quote.promoApplied ? (
+                <div className="border-t border-black/[0.06] bg-[#7c3aed]/[0.06] px-5 py-3.5 flex items-start gap-3">
+                  <Sparkles className="w-4 h-4 text-[#7c3aed] shrink-0 mt-0.5" strokeWidth={2.4} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#7c3aed] font-bold mb-0.5">
+                      Launch promo applied
+                    </div>
+                    <div className="text-[12px] font-light text-black/70 leading-snug">
+                      Service fee waived —{" "}
+                      <span className="line-through text-black/40">
+                        {formatGBP(quote.serviceFeeListPrice)}
+                      </span>{" "}
+                      <span className="font-medium text-[#7c3aed]">£0</span>.
+                      You&rsquo;re saving {formatGBP(quote.serviceFeeListPrice)} on
+                      this order. Limited time only.
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="border-t border-black/[0.06] px-5 py-4 flex items-center justify-between gap-4">
                 <div>

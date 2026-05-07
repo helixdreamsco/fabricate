@@ -10,6 +10,7 @@ import {
   type MaterialKey,
   type QualityKey,
 } from "./catalog";
+import { isPlatformFeePromoActive } from "./promotions";
 
 /** Industry-rough purge / waste-tower cost per extra colour change. */
 export const COLOR_CHANGE_SURCHARGE_GBP = 0.4;
@@ -19,7 +20,14 @@ export type Quote = {
   estMinutes: number;
   materialCost: number;
   machineCost: number;
+  /** Actually charged service fee (0 during the launch promo). */
   serviceFee: number;
+  /** What the service fee would be without any promotion — for the
+   *  strikethrough display in the breakdown. Equal to serviceFee when
+   *  no promo is active. */
+  serviceFeeListPrice: number;
+  /** Convenience flag for UI callouts. */
+  promoApplied: boolean;
   delivery: number;
   subtotal: number;
   discountApplied: number; // £ saved vs list price (before service fee)
@@ -88,8 +96,12 @@ export function estimateQuote({
 
   const discountApplied = listSubtotal - subtotal;
   // Service fee = £2 base + 10% of the printing subtotal. £2 floor when the
-  // subtotal is zero (free-mode community jobs).
-  const serviceFee = SERVICE_FEE_BASE_GBP + subtotal * SERVICE_FEE_PCT;
+  // subtotal is zero (free-mode community jobs). During the launch promo
+  // we waive it entirely — list price stays computed for the
+  // strikethrough display.
+  const serviceFeeListPrice = SERVICE_FEE_BASE_GBP + subtotal * SERVICE_FEE_PCT;
+  const promoApplied = isPlatformFeePromoActive();
+  const serviceFee = promoApplied ? 0 : serviceFeeListPrice;
 
   // Per-extra-colour purge surcharge. Applied per part (not multiplied by
   // quantity since AMS sequences colours within a single multi-part job).
@@ -106,6 +118,8 @@ export function estimateQuote({
     materialCost,
     machineCost,
     serviceFee,
+    serviceFeeListPrice,
+    promoApplied,
     delivery: deliveryFee,
     subtotal,
     discountApplied,

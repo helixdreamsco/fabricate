@@ -18,8 +18,13 @@ export function formatGbp(pence: number): string {
   }).format(pence / 100);
 }
 
-/** Default platform fee: 8% of quoted price, minimum 50p. */
+import { isPlatformFeePromoActive } from "./promotions";
+
+/** Default platform fee: 8% of quoted price, minimum 50p.
+ *  Returns 0 while the launch promo is active (Fabricate gives up its
+ *  cut so the maker keeps the full bid). */
 export function platformFeePenceFor(amountPence: number): number {
+  if (isPlatformFeePromoActive()) return 0;
   return Math.max(50, Math.round(amountPence * 0.08));
 }
 

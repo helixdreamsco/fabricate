@@ -15,6 +15,7 @@ import {
   type MaterialKey,
 } from "@/lib/catalog";
 import { estimateQuote } from "@/lib/pricing";
+import { isPlatformFeePromoActive } from "@/lib/promotions";
 import { useOrder } from "@/lib/order-store";
 import { postQuote } from "@/lib/api";
 import { MakerPickerModal } from "./MakerPickerModal";
@@ -194,7 +195,10 @@ export function ConfigPanel() {
   ]);
 
   // Prefer the server quote total over the client estimate when it's fresh
-  // (i.e. no pending verification).
+  // (i.e. no pending verification). The server (Python) doesn't yet know
+  // about the launch promo, so we waive the service fee client-side and
+  // adjust the total accordingly.
+  const promoApplied = isPlatformFeePromoActive();
   const quote =
     draft.quoteStatus === "verified" && draft.serverQuote
       ? {
@@ -202,13 +206,17 @@ export function ConfigPanel() {
           estMinutes: draft.serverQuote.quote.time_minutes,
           materialCost: draft.serverQuote.quote.material_cost,
           machineCost: draft.serverQuote.quote.machine_cost,
-          serviceFee: draft.serverQuote.quote.service_fee,
+          serviceFee: promoApplied ? 0 : draft.serverQuote.quote.service_fee,
+          serviceFeeListPrice: draft.serverQuote.quote.service_fee,
+          promoApplied,
           delivery: draft.serverQuote.quote.delivery,
           subtotal: draft.serverQuote.quote.subtotal,
           discountApplied: draft.serverQuote.quote.discount_applied ?? 0,
           multiMaterialSurcharge:
             draft.serverQuote.quote.multi_material_surcharge ?? 0,
-          total: draft.serverQuote.quote.total,
+          total:
+            draft.serverQuote.quote.total -
+            (promoApplied ? draft.serverQuote.quote.service_fee : 0),
           source: draft.serverQuote.quote.engine,
         }
       : estimate
@@ -825,8 +833,23 @@ export function ConfigPanel() {
             />
             <Row
               label="Service"
-              detail="QC + escrow"
-              value={formatGBP(quote.serviceFee)}
+              detail={
+                quote.promoApplied
+                  ? "Waived · launch promo"
+                  : "QC + escrow"
+              }
+              value={
+                quote.promoApplied ? (
+                  <span className="inline-flex items-baseline gap-1.5">
+                    <span className="text-black/35 line-through font-light">
+                      {formatGBP(quote.serviceFeeListPrice)}
+                    </span>
+                    <span className="text-[#7c3aed] font-bold">£0.00</span>
+                  </span>
+                ) : (
+                  formatGBP(quote.serviceFee)
+                )
+              }
             />
             <Row
               label="Delivery"
@@ -912,7 +935,7 @@ function Row({
 }: {
   label: string;
   detail?: string;
-  value: string;
+  value: React.ReactNode;
 }) {
   return (
     <div className="flex items-baseline justify-between">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/shell/TopNav";
+import { PromoBanner } from "@/components/shell/PromoBanner";
 import { OrderProvider } from "@/lib/order-store";
 import { SessionProviderClient } from "@/components/auth/SessionProviderClient";
 
@@ -34,6 +35,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <SessionProviderClient>
           <OrderProvider>
+            <PromoBanner />
             <TopNav />
             <main className="flex-1 flex flex-col">{children}</main>
           </OrderProvider>
