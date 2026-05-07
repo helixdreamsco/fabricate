@@ -78,7 +78,7 @@ export function MobileMenu(props: Props) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[60] md:hidden h-[100dvh]">
+        <div className="fixed inset-0 z-[9999] md:hidden h-[100dvh]">
           <button
             type="button"
             aria-label="Close menu"
