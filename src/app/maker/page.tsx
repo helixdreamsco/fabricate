@@ -10,6 +10,7 @@ import { TestModeBadge } from "@/components/jobs/TestModeBadge";
 import { paymentMode } from "@/lib/payments";
 import { formatGbp } from "@/lib/money";
 import { MakerEarningsCard } from "@/components/maker/MakerEarningsCard";
+import { DemandInsightsCard } from "@/components/maker/DemandInsightsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +151,11 @@ export default async function MakerDashboardPage() {
             value={String(recentBids.length)}
             detail={recentBids.length === 0 ? "Place a bid in the market" : "Awaiting creator response"}
           />
+        </div>
+
+        {/* Demand insights — under-served categories the maker could fill */}
+        <div className="mb-5">
+          <DemandInsightsCard makerId={profile.id} />
         </div>
 
         {/* Active jobs */}
