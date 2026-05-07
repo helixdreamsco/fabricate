@@ -78,7 +78,7 @@ export function MobileMenu(props: Props) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[60] md:hidden">
+        <div className="fixed inset-0 z-[60] md:hidden h-[100dvh]">
           <button
             type="button"
             aria-label="Close menu"
@@ -89,7 +89,7 @@ export function MobileMenu(props: Props) {
             role="dialog"
             aria-modal="true"
             aria-label="Site menu"
-            className="absolute right-0 top-0 bottom-0 w-[88vw] max-w-[360px] bg-white shadow-2xl flex flex-col"
+            className="absolute right-0 top-0 w-[88vw] max-w-[360px] h-[100dvh] bg-white shadow-2xl flex flex-col"
           >
             <Header
               onClose={() => setOpen(false)}
@@ -99,13 +99,13 @@ export function MobileMenu(props: Props) {
               signedIn={props.signedIn}
             />
 
-            <nav className="flex-1 overflow-y-auto py-2">
+            <div className="flex-1 min-h-0 overflow-y-auto py-2">
               {props.signedIn ? (
                 <SignedInGroups isMaker={props.isMaker} pathname={pathname} />
               ) : (
                 <SignedOutGroup pathname={pathname} />
               )}
-            </nav>
+            </div>
 
             <Footer signedIn={props.signedIn} />
           </div>
