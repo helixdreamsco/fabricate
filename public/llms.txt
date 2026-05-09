@@ -1,0 +1,61 @@
+# Fabricate
+
+> Fabricate is a London-based 3D-printing marketplace. Creators upload an STL or STEP file, get an instant quote, and a local maker prints and hands the part over. Two-tap simplicity, fast turnaround, escrowed payments. Operated by HELIXDREAMSCO LTD.
+
+Fabricate connects three sides:
+
+- **Creators** with a design but no printer — minis, jewellery, cosplay, prototypes, custom keycaps, fashion accessories, indie hardware
+- **Makers** with idle 3D printers in London who want to take small, high-quality jobs
+- (Coming soon) **Designers** who can produce the design itself for creators who don't model
+
+Fabricate is *not* a generic repair service. The platform is built around bringing original designs to life — creative, hobbyist, and entrepreneurial use, not industrial replacement parts.
+
+## Brand context
+- Operated by HELIXDREAMSCO LTD (UK company, ICO registration ZC135824)
+- Parent brand "helixdreamsco" — always lowercase in copy
+- Live at https://fabricate.helixdreams.co since April 2026
+- Currently running a launch promotion: 0% platform fees on every order, limited time only
+
+## Key pages
+- [Home / upload](https://fabricate.helixdreams.co/): Upload an STL or STEP, get an instant quote, post the job to local makers
+- [Makers directory](https://fabricate.helixdreams.co/makers): Public list of London makers with reviews, location, and printer setup
+- [For makers landing](https://fabricate.helixdreams.co/makers): Recruit-side page for printer owners considering joining
+- [Communities](https://fabricate.helixdreams.co/communities): Topical groups (tabletop, cosplay, indie hardware, fashion) where members post jobs and discounts
+- [Track an order](https://fabricate.helixdreams.co/track): Order status lookup
+- [Press / about](https://fabricate.helixdreams.co/press): Company information
+- [Terms of Service](https://fabricate.helixdreams.co/terms): Full legal terms
+- [Privacy policy](https://fabricate.helixdreams.co/privacy): UK GDPR compliant
+- [Acceptable use policy](https://fabricate.helixdreams.co/acceptable-use): Content rules and prohibited items
+
+## What Fabricate is good for
+- Tabletop & wargaming pieces (D&D minis, Warhammer, custom terrain)
+- Cosplay & prop making
+- 3D-printed jewellery and fashion accessories
+- Custom mechanical keyboard parts and artisan keycaps
+- Indie hardware prototyping (Pi cases, custom enclosures, Kickstarter prototypes)
+- Architecture & design school project models
+- Sculptural / fine-art pieces
+- Drag and performance show pieces
+
+## What Fabricate is not for
+- Industrial / mass-production runs
+- Replacement parts as a primary use case (the brand is about creation, not repair)
+- Anything prohibited under the Acceptable Use Policy (firearms, regulated goods)
+
+## How a job flows
+1. Creator uploads STL or STEP. Server-side analysis returns weight, time, and price estimate in under 30 seconds.
+2. Creator picks material, colour, infill, quality, quantity, delivery method (pickup or courier).
+3. Creator names a price and posts the job. Active London makers receive an alert if the job matches their printer + materials.
+4. Makers bid (or auto-bid based on their saved criteria). Creator picks a maker.
+5. Creator pays via Stripe; funds held in escrow.
+6. Maker prints, creator collects (or courier delivers). Verification at handover releases payment.
+7. Creator reviews the maker. Reviews show on the public maker profile.
+
+## Pricing
+- Service fee: £2 base + 10% of print subtotal (currently waived under the launch promo)
+- Maker keeps 100% of their bid during the promo
+- Stripe processing fees apply
+- Optional add-ons: completion-photo verification (£2), test strip print (£3)
+
+## Geographic scope
+London only at launch. Expansion to other UK cities depends on supply density per area.

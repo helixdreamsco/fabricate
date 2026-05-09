@@ -11,6 +11,7 @@ import { parsePrinterMaterials } from "@/lib/printers";
 import { pickPrimaryPrinter } from "@/lib/maker-profile";
 import { Star } from "lucide-react";
 import { BackLink } from "@/components/shell/BackLink";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +61,55 @@ export default async function PublicMakerProfilePage({ params }: Params) {
 
   const primaryPrinter = pickPrimaryPrinter(profile.printers);
 
+  // LocalBusiness structured data — feeds Google's local pack and is
+  // increasingly extracted by AI search for entity-style answers.
+  const profileUrl = `https://fabricate.helixdreams.co/makers/${profile.id}`;
+  const jsonLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${profileUrl}#maker`,
+    name: profile.displayName,
+    description: profile.bio ?? `3D printing maker on Fabricate, based in London.`,
+    url: profileUrl,
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: city ?? "London",
+      addressCountry: "GB",
+    },
+    areaServed: { "@type": "City", name: "London" },
+    parentOrganization: {
+      "@type": "Organization",
+      name: "Fabricate",
+      url: "https://fabricate.helixdreams.co",
+    },
+  };
+  if (aggregate.count > 0 && aggregate.avg !== null) {
+    jsonLd.aggregateRating = {
+      "@type": "AggregateRating",
+      ratingValue: aggregate.avg.toFixed(1),
+      reviewCount: aggregate.count,
+      bestRating: 5,
+      worstRating: 1,
+    };
+  }
+  if (reviews.length > 0) {
+    jsonLd.review = reviews.slice(0, 10).map((r) => ({
+      "@type": "Review",
+      reviewRating: {
+        "@type": "Rating",
+        ratingValue: r.rating,
+        bestRating: 5,
+        worstRating: 1,
+      },
+      author: { "@type": "Person", name: r.authorName ?? "Anonymous" },
+      reviewBody: r.comment ?? undefined,
+      datePublished: r.createdAt,
+    }));
+  }
+
   return (
     <div className="flex-1 bg-grid-none">
+      <JsonLd data={jsonLd} />
       <div className="max-w-[900px] mx-auto px-5 md:px-8 py-8">
         <BackLink
           href={isOwner ? "/maker" : "/makers"}

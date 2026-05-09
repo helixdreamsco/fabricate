@@ -19,9 +19,64 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fabricate — Upload. Pay. Print.",
+  metadataBase: new URL("https://fabricate.helixdreams.co"),
+  title: {
+    default: "Fabricate — London's 3D Printing Marketplace",
+    template: "%s · Fabricate",
+  },
   description:
-    "The 2-tap 3D printing marketplace. Upload an STL, get an instant quote, receive your part without the usual back-and-forth.",
+    "Bring your design to life with London's makers. Upload an STL, get an instant quote, and receive your part — minis, jewellery, cosplay, prototypes, custom keycaps. Local pickup, fast turnaround.",
+  applicationName: "Fabricate",
+  keywords: [
+    "3d printing service london",
+    "custom 3d printing",
+    "3d print on demand",
+    "miniature printing london",
+    "cosplay prop printing",
+    "indie hardware prototyping",
+    "fashion 3d printing",
+    "custom keycaps",
+    "stl to part",
+    "rapid prototyping london",
+    "3d printing marketplace uk",
+    "fabricate",
+    "helixdreamsco",
+  ],
+  authors: [{ name: "helixdreamsco", url: "https://helixdreams.co" }],
+  creator: "helixdreamsco",
+  publisher: "HELIXDREAMSCO LTD",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Fabricate",
+    locale: "en_GB",
+    url: "https://fabricate.helixdreams.co",
+    title: "Fabricate — London's 3D Printing Marketplace",
+    description:
+      "Upload an STL, get an instant quote, and a London-based maker brings your design to life. For creators, makers, and indie hardware founders.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Fabricate — London's 3D Printing Marketplace",
+    description:
+      "Upload an STL, get a quote, get the part. London makers · 0% fees this month.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  icons: {
+    icon: "/icon-256.png",
+    apple: "/icon-256.png",
+  },
 };
 
 export default function RootLayout({
