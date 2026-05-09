@@ -90,6 +90,42 @@ export type MakerProfileSummary = {
   sharedCommunities: SharedCommunity[];
 };
 
+/**
+ * One displayable entry in lists/dropdowns that show makers with their
+ * pickup locations broken out — i.e. a maker with two locations becomes
+ * two rows. Use anywhere the UI wants to surface "locations as if they
+ * were different makers" (homepage sidebar, checkout prioritise picker,
+ * configure MakerPickerModal). The underlying `maker.id` stays the same
+ * across rows for the same maker, so picking any row routes to the
+ * same maker — the location is purely informational.
+ */
+export type MakerLocationRow = {
+  /** Stable React key — unique per (maker, location) pair. */
+  rowKey: string;
+  maker: MakerProfileSummary;
+  /** The specific pickup location this row represents. Null when the
+   *  maker has no PickupLocation rows yet (legacy / unmigrated). */
+  location: PickupLocationSummary | null;
+  /** Postcode for this row. Falls back to the maker's primary mirror. */
+  postcode: string | null;
+};
+
+export function expandMakerLocations(
+  makers: MakerProfileSummary[],
+): MakerLocationRow[] {
+  return makers.flatMap((m): MakerLocationRow[] => {
+    if (m.locations.length === 0) {
+      return [{ rowKey: m.id, maker: m, location: null, postcode: m.postcode }];
+    }
+    return m.locations.map((l) => ({
+      rowKey: `${m.id}:${l.id}`,
+      maker: m,
+      location: l,
+      postcode: l.postcode,
+    }));
+  });
+}
+
 export function pickPrimaryPrinter(printers: Printer[]): Printer | null {
   const active = printers.filter((p) => p.active);
   const sorted = (active.length > 0 ? active : printers).sort(

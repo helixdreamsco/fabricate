@@ -34,7 +34,8 @@ import {
   type MakerScore,
   type SortKey,
 } from "@/lib/maker-filters";
-import type { MakerProfileSummary } from "@/lib/maker-profile";
+import type { MakerLocationRow, MakerProfileSummary } from "@/lib/maker-profile";
+import { expandMakerLocations } from "@/lib/maker-profile";
 
 const FleetMap = dynamic(
   () => import("./FleetMap").then((m) => m.FleetMap),
@@ -81,6 +82,15 @@ export function LoggedInHome({
   const [showFitting, setShowFitting] = React.useState(false); // filter: only show compat
   const [realMakers, setRealMakers] = React.useState<MakerProfileSummary[]>([]);
   const [makersLoading, setMakersLoading] = React.useState(true);
+
+  // Each pickup location is its own row in the sidebar list — a maker
+  // with two locations appears twice, with the maker's reputation
+  // shared. The underlying maker.id stays the same so reviews/links
+  // resolve correctly.
+  const makerRows: MakerLocationRow[] = React.useMemo(
+    () => expandMakerLocations(realMakers),
+    [realMakers],
+  );
 
   // Pull real maker profiles from the DB. includeSelf=true so a maker
   // viewing the homepage sees their own listing — they're a member of
@@ -339,7 +349,7 @@ export function LoggedInHome({
           <MonoLabel size="sm">
             {makersLoading
               ? "Loading…"
-              : `${realMakers.length} ${realMakers.length === 1 ? "maker" : "makers"}`}
+              : `${makerRows.length} ${makerRows.length === 1 ? "location" : "locations"}`}
             {activeCommunity && activeCommunity.priorityQueue
               ? " · priority queue"
               : ""}
@@ -437,14 +447,14 @@ export function LoggedInHome({
                 <li className="p-10 text-center">
                   <MonoLabel size="md" className="block">Loading makers…</MonoLabel>
                 </li>
-              ) : realMakers.length === 0 ? (
+              ) : makerRows.length === 0 ? (
                 <EmptyMakers scope={activeCommunity?.name ?? null} />
               ) : (
-                realMakers.map((m) => (
+                makerRows.map((row) => (
                   <RealMakerRow
-                    key={m.id}
-                    m={m}
-                    isSelf={currentUserId === m.userId}
+                    key={row.rowKey}
+                    row={row}
+                    isSelf={currentUserId === row.maker.userId}
                   />
                 ))
               )}
@@ -782,15 +792,20 @@ function MakerRow({
 }
 
 function RealMakerRow({
-  m,
+  row,
   isSelf,
 }: {
-  m: MakerProfileSummary;
+  row: MakerLocationRow;
   isSelf: boolean;
 }) {
-  const outwardCode = m.postcode
-    ? m.postcode.split(/\s+/)[0]?.toUpperCase() ?? null
+  const m = row.maker;
+  const outwardCode = row.postcode
+    ? row.postcode.split(/\s+/)[0]?.toUpperCase() ?? null
     : null;
+  // When a maker has multiple locations, give each location's row its
+  // own visual identity — show the location label inline with the
+  // maker name. Reputation is still pooled at the maker level.
+  const locationLabel = row.location?.label ?? null;
   return (
     <li className="px-5 py-4 flex items-start gap-4 hover:bg-black/[0.02] transition-colors">
       <StatusDot
@@ -807,6 +822,11 @@ function RealMakerRow({
             >
               {m.displayName}
             </Link>
+            {locationLabel ? (
+              <span className="font-light text-black/55 text-[12px] truncate">
+                · {locationLabel}
+              </span>
+            ) : null}
             {m.hasAMS ? (
               <span
                 className="font-mono text-[8px] uppercase tracking-[0.18em] text-[#0a0a0a] bg-black/[0.04] px-1.5 py-0.5 rounded-full whitespace-nowrap"

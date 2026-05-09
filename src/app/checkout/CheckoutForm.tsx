@@ -18,6 +18,7 @@ import {
   TEST_STRIP_PRICE_PENCE,
 } from "@/lib/money";
 import type { MakerProfileSummary } from "@/lib/maker-profile";
+import { expandMakerLocations } from "@/lib/maker-profile";
 
 /**
  * Post-job flow.
@@ -427,17 +428,25 @@ export function CheckoutForm({
                     your communities surface first.
                   </p>
                   {(() => {
-                    const community = makers.filter((m) => m.sharedCommunities.length > 0);
-                    const others = makers.filter((m) => m.sharedCommunities.length === 0);
-                    const renderOption = (m: MakerProfileSummary) => {
-                      const meta = [
-                        m.printerModel,
-                        m.postcode,
-                        m.sharedCommunities[0]?.name,
+                    // One option per pickup location. Multi-location makers
+                    // appear once per location (with the label inline) but
+                    // the option's value is still the maker id — picking
+                    // any of a maker's locations sets the same prioritised
+                    // maker. The location is informational; final pickup
+                    // point is agreed in chat.
+                    const rows = expandMakerLocations(makers);
+                    const community = rows.filter((r) => r.maker.sharedCommunities.length > 0);
+                    const others = rows.filter((r) => r.maker.sharedCommunities.length === 0);
+                    const renderOption = (r: ReturnType<typeof expandMakerLocations>[number]) => {
+                      const labelBits = [
+                        r.location?.label ?? null,
+                        r.maker.printerModel,
+                        r.postcode,
+                        r.maker.sharedCommunities[0]?.name,
                       ].filter(Boolean).join(" · ");
                       return (
-                        <option key={m.id} value={m.id}>
-                          {m.displayName}{meta ? ` · ${meta}` : ""}
+                        <option key={r.rowKey} value={r.maker.id}>
+                          {r.maker.displayName}{labelBits ? ` · ${labelBits}` : ""}
                         </option>
                       );
                     };

@@ -16,11 +16,21 @@ type Props = {
 
 // Custom DivIcons keep us in the design system (no Leaflet defaults — those
 // also break in bundlers because their asset paths are relative).
-function makerIcon(opts: {
-  label: string;
-  available: boolean;
-  selected: boolean;
-}) {
+//
+// The marker is a circle with a printer glyph inside (Lucide's Printer
+// outline, inlined as SVG so we can colour-shift it via CSS without an
+// extra HTTP round-trip per pin).
+const PRINTER_SVG = `
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none"
+       stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <polyline points="6 9 6 2 18 2 18 9" />
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+    <rect x="6" y="14" width="12" height="8" rx="1" />
+  </svg>
+`;
+
+function makerIcon(opts: { available: boolean; selected: boolean }) {
   const ring = opts.selected
     ? "2px solid #0a0a0a"
     : opts.available
@@ -37,10 +47,8 @@ function makerIcon(opts: {
         border: ${ring};
         color: ${fg};
         display: flex; align-items: center; justify-content: center;
-        font: 700 10px/1 'Space Mono', ui-monospace, monospace;
-        letter-spacing: 0.1em;
         box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-      ">${opts.label}</div>
+      ">${PRINTER_SVG}</div>
     `,
     iconSize: [34, 34],
     iconAnchor: [17, 17],
@@ -125,7 +133,6 @@ export function FleetMap({ makers, user, selectedMakerId, onSelect }: Props) {
             key={m.pinId ?? m.id}
             position={[m.lat, m.lng]}
             icon={makerIcon({
-              label: m.postcode.replace("HUB-", ""),
               available: m.available,
               selected: selectedMakerId === m.id,
             })}

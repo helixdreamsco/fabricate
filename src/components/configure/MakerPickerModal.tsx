@@ -94,38 +94,12 @@ export function MakerPickerModal({
     };
   }, [open]);
 
-  // Adapt MakerProfileSummary → Maker for the existing scoring/map UI.
+  // Adapt MakerProfileSummary → Maker. One row per pickup location so
+  // the list, map, and scoring all key on the same per-location entry.
   // Distance/queue/rating fields are stubbed since we don't yet track
   // those signals; lat/lng come from postcodes.io geocoding done
-  // server-side in /api/makers.
-  //
-  // The list/scoring view wants one entry per maker (anchored on the
-  // primary location's coords); the map wants one entry per pickup point
-  // — see mapMakers below.
-  const inScopeMakers: Maker[] = React.useMemo(() => {
-    return realMakers.map((m): Maker => ({
-      id: m.id,
-      name: m.displayName,
-      area: m.postcode ? m.postcode.split(/\s+/)[0]?.toUpperCase() ?? "" : "",
-      postcode: m.postcode ?? "",
-      printer: m.printerModel ?? "Printer not specified",
-      statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
-      rating: 0,
-      lat: m.lat ?? 0,
-      lng: m.lng ?? 0,
-      available: m.stripeOnboarded,
-      materials: [],
-      buildVolumeMm: { x: 256, y: 256, z: 256 },
-      queueMins: 0,
-      machineRateGbpPerHour: 0,
-      supportsMultiMaterial: m.hasAMS,
-    }));
-  }, [realMakers]);
-
-  // Map-only adaptation: one Maker per pickup location with lat/lng so a
-  // multi-location maker shows up as multiple pins (sharing the same `id`
-  // so clicking any pin still resolves to the maker). Falls back to the
-  // profile-level coords for makers with no PickupLocation rows yet.
+  // server-side in /api/makers. Falls back to the profile-level coords
+  // for makers with no PickupLocation rows yet.
   const mapMakers: Maker[] = React.useMemo(() => {
     return realMakers.flatMap((m) => {
       const pins = (m.locations ?? []).filter(
@@ -157,7 +131,11 @@ export function MakerPickerModal({
       return pins.map((loc) => ({
         id: m.id,
         pinId: `${m.id}:${loc.id}`,
-        name: m.displayName,
+        // Suffix the maker's display name with the location label so the
+        // list renders multi-location makers as distinct rows ("Highbury
+        // Print Lab · UCL workshop"). Selecting any of them still routes
+        // to the same maker.id.
+        name: loc.label ? `${m.displayName} · ${loc.label}` : m.displayName,
         area: loc.postcode,
         postcode: loc.postcode,
         printer: m.printerModel ?? "Printer not specified",
@@ -181,10 +159,14 @@ export function MakerPickerModal({
 
   const needsMultiMaterial = draft.analysis?.isMultiMaterial ?? false;
 
+  // Score per pickup location so the "nearest" sort actually compares
+  // each location's coords, not just the maker's primary. Two pins for
+  // the same maker can sort independently — one might be closer than
+  // the other depending on where the creator is.
   const scored: MakerScore[] = React.useMemo(
     () =>
       scoreMakers({
-        makers: inScopeMakers,
+        makers: mapMakers,
         user: referenceCoord,
         analysis: analysisLite,
         preferredMaterial: draft.material,
@@ -193,7 +175,7 @@ export function MakerPickerModal({
         needsMultiMaterial,
       }),
     [
-      inScopeMakers,
+      mapMakers,
       referenceCoord.lat,
       referenceCoord.lng,
       analysisLite,
@@ -259,7 +241,7 @@ export function MakerPickerModal({
         <LocationBadge loc={loc} onRetry={() => setLoc({ kind: "pending" })} />
         <div className="ml-auto">
           <MonoLabel size="sm">
-            {visible.length} of {inScopeMakers.length} shown
+            {visible.length} of {mapMakers.length} shown
           </MonoLabel>
         </div>
       </div>
