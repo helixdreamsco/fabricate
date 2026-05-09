@@ -8,7 +8,7 @@
         "source": "**",
         "run": {
           "serviceId": "fabricate-web",
-          "region": "europe-west2"
+          "region": "europe-west1"
         }
       }
     ]
