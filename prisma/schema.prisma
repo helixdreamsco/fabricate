@@ -184,6 +184,9 @@ model MakerProfile {
 
   displayName String
   bio         String?
+  // Mirror of the primary PickupLocation row, kept on the profile for
+  // cheap single-postcode reads (job lists, bid panels, JSON-LD city).
+  // The full set of pickup points lives in `pickupLocations`.
   postcode    String?
   lat         Float?
   lng         Float?
@@ -207,7 +210,42 @@ model MakerProfile {
   bookmarks       MakerJobBookmark[]
   verification    MakerVerification?
   printers        Printer[]
+  pickupLocations PickupLocation[]
   subscription    MakerSubscription?
+}
+
+// One physical pickup point a maker advertises. Makers can list up to 5
+// (e.g. home studio + university workshop) and each renders as its own pin
+// on the marketplace map. All locations on a profile share the same User,
+// so reviews and reputation are aggregated globally — never per-location.
+model PickupLocation {
+  id      String       @id @default(cuid())
+  makerId String
+  maker   MakerProfile @relation(fields: [makerId], references: [id], onDelete: Cascade)
+
+  // Optional human label shown in the maker's edit UI and in pickup
+  // selectors ("UCL workshop", "Home studio"). The marketplace map
+  // intentionally renders pin tooltips with the maker's display name only,
+  // so two pins for one maker are visually identical until clicked.
+  label    String?
+  postcode String
+  // Resolved from postcode via postcodes.io. Stored so we don't re-geocode
+  // on every read; nullable when geocoding fails.
+  lat      Float?
+  lng      Float?
+  // Free-text pickup instructions ("ring buzzer #4", "weekdays after 6pm").
+  notes    String?
+  // Exactly one row per maker should have isPrimary=true. The primary's
+  // postcode/lat/lng are mirrored to MakerProfile for cheap single-row reads.
+  isPrimary Boolean @default(false)
+  // 0-based ordering for the maker's edit UI; lower = shown first.
+  ordering Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([makerId, ordering])
+  @@index([makerId, isPrimary])
 }
 
 /**

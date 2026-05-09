@@ -83,6 +83,11 @@ export const QUALITIES: Quality[] = [
 
 export type Maker = {
   id: string;
+  /** Stable React/Marker key for the map. When a maker has multiple pickup
+   *  locations they appear as multiple Marker entries sharing the same `id`
+   *  (so clicking any of them selects the maker), but each carrying its own
+   *  `pinId`. Falls back to `id` when only one pin is rendered. */
+  pinId?: string;
   name: string;
   area: string;
   postcode: string;

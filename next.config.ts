@@ -60,6 +60,23 @@ const nextConfig: NextConfig = {
   // the build artefact is a self-contained server bundle. Vercel ignores
   // this and uses its own pipeline.
   output: "standalone",
+  experimental: {
+    // src/proxy.ts runs on /api/uploads. Next.js 16 buffers the request
+    // body so proxy + route handler can each read it; the default cap is
+    // 10MB and anything larger is silently truncated (no error to the
+    // client). A truncated multipart body makes req.formData() fail with
+    // "expected multipart/form-data". Matched to MAX_UPLOAD_BYTES (2 GiB)
+    // in src/lib/upload-validation.ts with headroom for the multipart
+    // boundary overhead.
+    //
+    // ⚠ External cap: Cloud Run rejects requests larger than 32MB by
+    // default. To accept truly large uploads in production you also need
+    // to either (a) enable HTTP/2 streaming on the Cloud Run service and
+    // raise the per-request limit, or (b) switch /api/uploads to a
+    // direct-to-GCS signed-URL flow (the only way to get above the
+    // platform's hard ceilings). This config alone isn't enough.
+    proxyClientMaxBodySize: "2gb",
+  },
 };
 
 export default nextConfig;

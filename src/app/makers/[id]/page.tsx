@@ -46,6 +46,7 @@ export default async function PublicMakerProfilePage({ params }: Params) {
       verification: { select: { status: true } },
       user: { select: { id: true } },
       printers: { orderBy: { priority: "asc" } },
+      pickupLocations: { orderBy: { ordering: "asc" } },
     },
   });
   if (!profile) notFound();
@@ -224,6 +225,42 @@ export default async function PublicMakerProfilePage({ params }: Params) {
                         Any material
                       </div>
                     )}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ) : null}
+
+        {profile.pickupLocations.length > 0 ? (
+          <Card className="p-5 mb-4">
+            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/45 mb-3">
+              Pickup locations
+            </div>
+            <ul className="space-y-2">
+              {profile.pickupLocations.map((l, idx) => {
+                const out = outwardCode(l.postcode);
+                return (
+                  <li
+                    key={l.id}
+                    className="rounded-lg border border-black/[0.08] p-3 flex items-baseline gap-3 flex-wrap"
+                  >
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 tabular-nums">
+                      {out ?? l.postcode}
+                    </span>
+                    {l.label ? (
+                      <span className="text-sm font-medium">{l.label}</span>
+                    ) : null}
+                    {idx === 0 ? (
+                      <span className="font-mono text-[9px] uppercase tracking-[0.16em] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-800 border border-amber-500/30">
+                        Primary
+                      </span>
+                    ) : null}
+                    {l.notes ? (
+                      <span className="block w-full text-[12px] font-light text-black/65 leading-snug whitespace-pre-wrap">
+                        {l.notes}
+                      </span>
+                    ) : null}
                   </li>
                 );
               })}

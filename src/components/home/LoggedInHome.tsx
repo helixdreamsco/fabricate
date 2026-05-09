@@ -20,6 +20,7 @@ import { MATERIALS, type Maker } from "@/lib/catalog";
 import { cn, formatDistance, formatGBP } from "@/lib/utils";
 import { analyzeSTL } from "@/lib/stl";
 import { postAnalyze } from "@/lib/api";
+import { describeUploadError, preflightUploadError } from "@/lib/upload-error";
 import {
   defaultPartColors,
   useOrder,
@@ -142,22 +143,50 @@ export function LoggedInHome({
   // stubbed with safe defaults; the list view never sees this array.
   const inScopeMakers: Maker[] = [];
 
+  // One Maker entry per pickup location whose lat/lng resolved. Multi-
+  // location makers contribute multiple pins sharing the same `id` (so
+  // clicking any pin still selects "the maker"), distinguished by
+  // `pinId`. Falls back to the profile-level postcode/coords for legacy
+  // single-location makers that haven't been migrated yet.
   const mapMakers: Maker[] = React.useMemo(() => {
-    return realMakers
-      .filter(
-        (m): m is typeof m & { lat: number; lng: number } =>
-          m.lat != null && m.lng != null,
-      )
-      .map((m) => ({
+    return realMakers.flatMap((m) => {
+      const pins = (m.locations ?? []).filter(
+        (l): l is typeof l & { lat: number; lng: number } =>
+          l.lat != null && l.lng != null,
+      );
+      if (pins.length === 0 && m.lat != null && m.lng != null) {
+        return [
+          {
+            id: m.id,
+            pinId: m.id,
+            name: m.displayName,
+            area: m.postcode ?? "",
+            postcode: m.postcode ?? "",
+            printer: m.printerModel ?? "",
+            statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
+            rating: 0,
+            lat: m.lat,
+            lng: m.lng,
+            available: m.stripeOnboarded,
+            materials: [],
+            buildVolumeMm: { x: 256, y: 256, z: 256 },
+            queueMins: 0,
+            machineRateGbpPerHour: 0,
+            supportsMultiMaterial: m.hasAMS,
+          },
+        ];
+      }
+      return pins.map((loc) => ({
         id: m.id,
+        pinId: `${m.id}:${loc.id}`,
         name: m.displayName,
-        area: m.postcode ?? "",
-        postcode: m.postcode ?? "",
+        area: loc.postcode,
+        postcode: loc.postcode,
         printer: m.printerModel ?? "",
         statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
         rating: 0,
-        lat: m.lat,
-        lng: m.lng,
+        lat: loc.lat,
+        lng: loc.lng,
         available: m.stripeOnboarded,
         materials: [],
         buildVolumeMm: { x: 256, y: 256, z: 256 },
@@ -165,6 +194,7 @@ export function LoggedInHome({
         machineRateGbpPerHour: 0,
         supportsMultiMaterial: m.hasAMS,
       }));
+    });
   }, [realMakers]);
 
   // Score + sort.
@@ -211,6 +241,11 @@ export function LoggedInHome({
 
   const onFile = async (f: File) => {
     setUploadErr(null);
+    const pre = preflightUploadError(f);
+    if (pre) {
+      setUploadErr(pre);
+      return;
+    }
     setAnalyzing(true);
     try {
       const [analysis, serverAnalysis] = await Promise.all([
@@ -249,7 +284,7 @@ export function LoggedInHome({
       router.push("/configure");
     } catch (e) {
       console.error(e);
-      setUploadErr("Could not parse that file. Make sure it is a valid STL.");
+      setUploadErr(describeUploadError(f, e));
     } finally {
       setAnalyzing(false);
     }
@@ -343,7 +378,10 @@ export function LoggedInHome({
             <input
               ref={fileInput}
               type="file"
-              accept=".stl,.3mf,.obj,.step,.stp"
+              // No accept filter — iOS greys out CAD files when one's set,
+              // because STL/3MF/STEP have no registered UTIs. Validation
+              // happens after pick (client-side analyzeSTL + server-side
+              // upload-validation) so wrong types get a clear error.
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];

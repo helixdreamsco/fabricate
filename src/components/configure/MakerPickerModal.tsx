@@ -98,6 +98,10 @@ export function MakerPickerModal({
   // Distance/queue/rating fields are stubbed since we don't yet track
   // those signals; lat/lng come from postcodes.io geocoding done
   // server-side in /api/makers.
+  //
+  // The list/scoring view wants one entry per maker (anchored on the
+  // primary location's coords); the map wants one entry per pickup point
+  // — see mapMakers below.
   const inScopeMakers: Maker[] = React.useMemo(() => {
     return realMakers.map((m): Maker => ({
       id: m.id,
@@ -116,6 +120,59 @@ export function MakerPickerModal({
       machineRateGbpPerHour: 0,
       supportsMultiMaterial: m.hasAMS,
     }));
+  }, [realMakers]);
+
+  // Map-only adaptation: one Maker per pickup location with lat/lng so a
+  // multi-location maker shows up as multiple pins (sharing the same `id`
+  // so clicking any pin still resolves to the maker). Falls back to the
+  // profile-level coords for makers with no PickupLocation rows yet.
+  const mapMakers: Maker[] = React.useMemo(() => {
+    return realMakers.flatMap((m) => {
+      const pins = (m.locations ?? []).filter(
+        (l): l is typeof l & { lat: number; lng: number } =>
+          l.lat != null && l.lng != null,
+      );
+      if (pins.length === 0 && m.lat != null && m.lng != null) {
+        return [
+          {
+            id: m.id,
+            pinId: m.id,
+            name: m.displayName,
+            area: m.postcode ? m.postcode.split(/\s+/)[0]?.toUpperCase() ?? "" : "",
+            postcode: m.postcode ?? "",
+            printer: m.printerModel ?? "Printer not specified",
+            statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
+            rating: 0,
+            lat: m.lat,
+            lng: m.lng,
+            available: m.stripeOnboarded,
+            materials: [],
+            buildVolumeMm: { x: 256, y: 256, z: 256 },
+            queueMins: 0,
+            machineRateGbpPerHour: 0,
+            supportsMultiMaterial: m.hasAMS,
+          },
+        ];
+      }
+      return pins.map((loc) => ({
+        id: m.id,
+        pinId: `${m.id}:${loc.id}`,
+        name: m.displayName,
+        area: loc.postcode,
+        postcode: loc.postcode,
+        printer: m.printerModel ?? "Printer not specified",
+        statusEta: m.stripeOnboarded ? "Available" : "Setup pending",
+        rating: 0,
+        lat: loc.lat,
+        lng: loc.lng,
+        available: m.stripeOnboarded,
+        materials: [],
+        buildVolumeMm: { x: 256, y: 256, z: 256 },
+        queueMins: 0,
+        machineRateGbpPerHour: 0,
+        supportsMultiMaterial: m.hasAMS,
+      }));
+    });
   }, [realMakers]);
 
   const analysisLite = draft.analysis
@@ -242,7 +299,7 @@ export function MakerPickerModal({
         {/* Map */}
         <div className="relative bg-white min-h-[40vh] lg:min-h-0">
           <FleetMap
-            makers={inScopeMakers}
+            makers={mapMakers}
             user={loc.kind === "granted" ? loc.coord : null}
             selectedMakerId={previewId ?? draft.maker?.id ?? null}
             onSelect={(id) => setPreviewId(id)}

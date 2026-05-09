@@ -122,7 +122,7 @@ export function FleetMap({ makers, user, selectedMakerId, onSelect }: Props) {
         {user ? <Marker position={[user.lat, user.lng]} icon={userIcon()} /> : null}
         {makers.map((m) => (
           <Marker
-            key={m.id}
+            key={m.pinId ?? m.id}
             position={[m.lat, m.lng]}
             icon={makerIcon({
               label: m.postcode.replace("HUB-", ""),

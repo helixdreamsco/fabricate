@@ -7,10 +7,18 @@
 export function HelixLogo({
   className,
   size = 26,
+  variant = "purple",
 }: {
   className?: string;
   size?: number;
+  /** "purple" = brand colours on light backgrounds.
+   *  "white"  = solid white + 50%-opacity white strand for dark backgrounds. */
+  variant?: "purple" | "white";
 }) {
+  const [strokeA, strokeB, opacityB] =
+    variant === "white"
+      ? ["#ffffff", "#ffffff", 0.5]
+      : ["#7c3aed", "#a78bfa", 1];
   return (
     <svg
       width={size}
@@ -23,14 +31,15 @@ export function HelixLogo({
     >
       <path
         d="M12 4 Q22 10 12 16 Q2 22 12 28"
-        stroke="#7c3aed"
+        stroke={strokeA}
         strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M20 4 Q10 10 20 16 Q30 22 20 28"
-        stroke="#a78bfa"
+        stroke={strokeB}
+        strokeOpacity={opacityB}
         strokeWidth="2.6"
         strokeLinecap="round"
         strokeLinejoin="round"

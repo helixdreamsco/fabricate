@@ -24,7 +24,10 @@ export default async function MakerProfilePage() {
   if (!session?.user?.id) redirect("/account?callbackUrl=/maker/profile");
   const profile = await prisma.makerProfile.findUnique({
     where: { userId: session.user.id },
-    include: { printers: { orderBy: { priority: "asc" } } },
+    include: {
+      printers: { orderBy: { priority: "asc" } },
+      pickupLocations: { orderBy: { ordering: "asc" } },
+    },
   });
   return (
     <div className="flex-1 bg-grid-none">
@@ -49,7 +52,6 @@ export default async function MakerProfilePage() {
               ? {
                   displayName: profile.displayName,
                   bio: profile.bio ?? "",
-                  postcode: profile.postcode ?? "",
                   freeCompletionPhoto: profile.freeCompletionPhoto,
                   printers:
                     profile.printers.length > 0
@@ -72,6 +74,21 @@ export default async function MakerProfilePage() {
                             notes: "",
                           },
                         ],
+                  // Pickup locations come from the new PickupLocation table
+                  // (primary first). Fall back to the legacy postcode mirror
+                  // if a profile exists but has no rows yet — keeps the form
+                  // pre-populated for makers signed up before the migration.
+                  locations:
+                    profile.pickupLocations.length > 0
+                      ? profile.pickupLocations.map((l) => ({
+                          id: l.id,
+                          label: l.label ?? "",
+                          postcode: l.postcode,
+                          notes: l.notes ?? "",
+                        }))
+                      : profile.postcode
+                        ? [{ label: "", postcode: profile.postcode, notes: "" }]
+                        : [{ label: "", postcode: "", notes: "" }],
                 }
               : null
           }

@@ -6,6 +6,7 @@ import { ChevronUp, ChevronDown, Trash2, Plus, ArrowUpRight } from "lucide-react
 import { Button } from "@/components/ui/Button";
 import { PrinterModelSearch } from "@/components/maker/PrinterModelSearch";
 import { MATERIALS, type MaterialKey } from "@/lib/catalog";
+import { MAX_PICKUP_LOCATIONS } from "@/lib/maker-profile";
 import { cn } from "@/lib/utils";
 
 type PrinterInput = {
@@ -18,12 +19,19 @@ type PrinterInput = {
   notes: string;
 };
 
+type LocationInput = {
+  id?: string;
+  label: string;
+  postcode: string;
+  notes: string;
+};
+
 type Initial = {
   displayName: string;
   bio: string;
-  postcode: string;
   freeCompletionPhoto: boolean;
   printers: PrinterInput[];
+  locations: LocationInput[];
 };
 
 const EMPTY_PRINTER: PrinterInput = {
@@ -35,19 +43,53 @@ const EMPTY_PRINTER: PrinterInput = {
   notes: "",
 };
 
+const EMPTY_LOCATION: LocationInput = {
+  label: "",
+  postcode: "",
+  notes: "",
+};
+
 export function ProfileForm({ initial }: { initial: Initial | null }) {
   const router = useRouter();
   const [form, setForm] = React.useState<Initial>(
     initial ?? {
       displayName: "",
       bio: "",
-      postcode: "",
       freeCompletionPhoto: false,
       printers: [{ ...EMPTY_PRINTER }],
+      locations: [{ ...EMPTY_LOCATION }],
     },
   );
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+
+  const updateLocation = (idx: number, patch: Partial<LocationInput>) =>
+    setForm((f) => ({
+      ...f,
+      locations: f.locations.map((l, i) => (i === idx ? { ...l, ...patch } : l)),
+    }));
+
+  const addLocation = () =>
+    setForm((f) =>
+      f.locations.length >= MAX_PICKUP_LOCATIONS
+        ? f
+        : { ...f, locations: [...f.locations, { ...EMPTY_LOCATION }] },
+    );
+
+  const removeLocation = (idx: number) =>
+    setForm((f) => ({
+      ...f,
+      locations: f.locations.filter((_, i) => i !== idx),
+    }));
+
+  const moveLocation = (idx: number, dir: -1 | 1) =>
+    setForm((f) => {
+      const swap = idx + dir;
+      if (swap < 0 || swap >= f.locations.length) return f;
+      const next = [...f.locations];
+      [next[idx], next[swap]] = [next[swap], next[idx]];
+      return { ...f, locations: next };
+    });
 
   const updatePrinter = (idx: number, patch: Partial<PrinterInput>) =>
     setForm((f) => ({
@@ -132,15 +174,111 @@ export function ProfileForm({ initial }: { initial: Initial | null }) {
           placeholder="A line about your setup, lead times, what you specialise in."
         />
       </Field>
-      <Field label="Postcode (London)">
-        <input
-          value={form.postcode}
-          onChange={(e) => setForm((f) => ({ ...f, postcode: e.target.value }))}
-          className="bg-transparent w-full border-b border-black/15 pb-1.5 text-base font-light outline-none focus:border-black/50 transition-colors"
-          placeholder="N1 7HQ"
-          maxLength={16}
-        />
-      </Field>
+      {/* Pickup locations */}
+      <div className="space-y-3 pt-3 border-t border-black/[0.08]">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <div>
+            <h2 className="font-mono text-[10px] uppercase tracking-[0.2em] text-black/55 mb-1">
+              Pickup locations
+            </h2>
+            <p className="text-[12px] font-light text-black/55 leading-snug max-w-md">
+              Each pickup point shows up as its own pin on the map. The top
+              one is your <strong>primary</strong> — it&rsquo;s the default
+              for new jobs. Reviews and reputation are pooled across all
+              your locations. Up to {MAX_PICKUP_LOCATIONS}.
+            </p>
+          </div>
+        </div>
+
+        {form.locations.map((l, idx) => (
+          <div
+            key={l.id ?? `new-loc-${idx}`}
+            className="rounded-xl border border-black/[0.08] p-4 space-y-4"
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-black/55">
+                Location {idx + 1}
+                {idx === 0 ? " · primary" : ""}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => moveLocation(idx, -1)}
+                  disabled={idx === 0}
+                  aria-label="Move up"
+                  className="p-1 rounded hover:bg-black/[0.04] disabled:opacity-30 transition-colors"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveLocation(idx, 1)}
+                  disabled={idx === form.locations.length - 1}
+                  aria-label="Move down"
+                  className="p-1 rounded hover:bg-black/[0.04] disabled:opacity-30 transition-colors"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+                {form.locations.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeLocation(idx)}
+                    aria-label="Remove location"
+                    className="p-1 rounded text-red-700 hover:bg-red-500/10 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <Field label="Label (optional)">
+              <input
+                value={l.label}
+                onChange={(e) => updateLocation(idx, { label: e.target.value })}
+                placeholder="e.g. Home studio · UCL workshop"
+                className="bg-transparent w-full border-b border-black/15 pb-1.5 text-base font-light outline-none focus:border-black/50 transition-colors"
+                maxLength={60}
+              />
+            </Field>
+
+            <Field label="Postcode (London) *">
+              <input
+                required
+                value={l.postcode}
+                onChange={(e) => updateLocation(idx, { postcode: e.target.value })}
+                placeholder="N1 7HQ"
+                className="bg-transparent w-full border-b border-black/15 pb-1.5 text-base font-light outline-none focus:border-black/50 transition-colors"
+                maxLength={16}
+              />
+            </Field>
+
+            <Field label="Pickup notes (optional)">
+              <textarea
+                value={l.notes}
+                onChange={(e) => updateLocation(idx, { notes: e.target.value })}
+                placeholder="Buzzer #4, weekdays after 6pm…"
+                className="bg-transparent w-full border border-black/15 rounded-lg p-3 text-sm font-light outline-none focus:border-black/50 transition-colors min-h-[60px]"
+                maxLength={300}
+              />
+            </Field>
+          </div>
+        ))}
+
+        {form.locations.length < MAX_PICKUP_LOCATIONS ? (
+          <button
+            type="button"
+            onClick={addLocation}
+            className="inline-flex items-center gap-2 rounded-lg border border-dashed border-black/20 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-black/65 hover:border-black/45 hover:text-black transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add another location
+          </button>
+        ) : (
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-black/40">
+            Max {MAX_PICKUP_LOCATIONS} locations.
+          </p>
+        )}
+      </div>
 
       <label className="flex items-start gap-3 cursor-pointer select-none">
         <input

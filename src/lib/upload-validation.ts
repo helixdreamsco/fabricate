@@ -4,7 +4,12 @@
  * slicer.
  */
 
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+// 2 GiB. The client-side preflight in upload-error.ts and the server-side
+// check in /api/uploads both read this. The matching Next.js proxy cap is
+// set in next.config.ts (experimental.proxyClientMaxBodySize). Note: the
+// hosting platform also has its own request-size cap — see deployment
+// notes in next.config.ts.
+export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
 export const ALLOWED_EXTENSIONS = ["stl", "3mf", "step", "stp", "obj"] as const;
 export type AllowedExtension = (typeof ALLOWED_EXTENSIONS)[number];
 
@@ -32,11 +37,13 @@ export function getExtension(filename: string): AllowedExtension {
 export function assertSize(byteLength: number) {
   if (byteLength <= 0)
     throw new UploadValidationError(400, "File is empty.");
-  if (byteLength > MAX_UPLOAD_BYTES)
-    throw new UploadValidationError(
-      413,
-      `File too large (max ${MAX_UPLOAD_BYTES / 1024 / 1024} MB).`,
-    );
+  if (byteLength > MAX_UPLOAD_BYTES) {
+    const limit =
+      MAX_UPLOAD_BYTES >= 1024 ** 3
+        ? `${(MAX_UPLOAD_BYTES / 1024 ** 3).toFixed(1)} GB`
+        : `${MAX_UPLOAD_BYTES / 1024 / 1024} MB`;
+    throw new UploadValidationError(413, `File too large (max ${limit}).`);
+  }
 }
 
 /**

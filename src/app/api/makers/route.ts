@@ -41,6 +41,7 @@ export async function GET(req: Request) {
     orderBy: { createdAt: "asc" },
     include: {
       printers: { orderBy: { priority: "asc" } },
+      pickupLocations: { orderBy: { ordering: "asc" } },
       user: {
         select: {
           memberships: {
@@ -58,12 +59,15 @@ export async function GET(req: Request) {
     },
   });
 
-  // Resolve postcodes → lat/lng in one batch so map markers can render.
-  // Degrades gracefully (lat/lng stay null) if postcodes.io is unreachable.
-  const postcodes = profiles
-    .map((p) => p.postcode)
-    .filter((p): p is string => !!p);
-  const coords = await geocodePostcodes(postcodes);
+  // Resolve every postcode across every location in one batch so map
+  // markers (one per location) can render. Degrades gracefully (lat/lng
+  // stay null) if postcodes.io is unreachable.
+  const postcodes = new Set<string>();
+  for (const p of profiles) {
+    if (p.postcode) postcodes.add(p.postcode);
+    for (const loc of p.pickupLocations) postcodes.add(loc.postcode);
+  }
+  const coords = await geocodePostcodes(Array.from(postcodes));
 
   return NextResponse.json({
     makers: profiles.map((p) => {
@@ -74,11 +78,16 @@ export async function GET(req: Request) {
         iconHue: m.community.iconHue,
       }));
       const summary = summarize(p, shared);
-      const coord = p.postcode ? coords.get(p.postcode) : undefined;
+      const profileCoord = p.postcode ? coords.get(p.postcode) : undefined;
+      const locations = summary.locations.map((loc) => {
+        const c = coords.get(loc.postcode);
+        return { ...loc, lat: c?.lat ?? null, lng: c?.lng ?? null };
+      });
       return {
         ...summary,
-        lat: coord?.lat ?? null,
-        lng: coord?.lng ?? null,
+        lat: profileCoord?.lat ?? null,
+        lng: profileCoord?.lng ?? null,
+        locations,
       };
     }),
   });

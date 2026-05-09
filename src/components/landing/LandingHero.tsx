@@ -9,6 +9,7 @@ import { defaultPartColors, useOrder } from "@/lib/order-store";
 import { savePendingUpload } from "@/lib/order-storage";
 import { MATERIALS } from "@/lib/catalog";
 import { postAnalyze } from "@/lib/api";
+import { describeUploadError, preflightUploadError } from "@/lib/upload-error";
 import { SlicerChip } from "@/components/shell/SlicerChip";
 
 export function LandingHero() {
@@ -19,6 +20,11 @@ export function LandingHero() {
 
   const handleFile = async (f: File) => {
     setErrMsg(null);
+    const pre = preflightUploadError(f);
+    if (pre) {
+      setErrMsg(pre);
+      return;
+    }
     setAnalyzing(true);
     try {
       // Run client-side parse (needed for geometry) and server-side Trimesh
@@ -40,9 +46,7 @@ export function LandingHero() {
       router.push("/configure");
     } catch (e) {
       console.error(e);
-      setErrMsg(
-        "Could not parse that file. Try a different STL, or make sure it is a valid binary / ASCII STL.",
-      );
+      setErrMsg(describeUploadError(f, e));
     } finally {
       setAnalyzing(false);
     }

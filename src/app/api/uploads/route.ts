@@ -26,8 +26,31 @@ export async function POST(req: Request) {
   if (!session?.user?.id)
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const form = await req.formData().catch(() => null);
-  if (!form) return NextResponse.json({ error: "expected multipart/form-data" }, { status: 400 });
+  // Surface a useful message when formData() throws. This is almost
+  // always one of:
+  //   - body truncated by the proxy body-size cap (see next.config.ts
+  //     experimental.proxyClientMaxBodySize). Symptom: very large file.
+  //   - request really did arrive without a multipart body (rare; usually
+  //     a misconfigured proxy in front of us).
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch (err) {
+    const contentType = req.headers.get("content-type") ?? "(none)";
+    const contentLength = req.headers.get("content-length") ?? "(unknown)";
+    console.error("[uploads] formData() failed", {
+      contentType,
+      contentLength,
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      {
+        error:
+          "Upload failed reading the file body. If the file is very large, try a smaller export — server max is 50 MB.",
+      },
+      { status: 400 },
+    );
+  }
   const file = form.get("file");
   if (!(file instanceof File))
     return NextResponse.json({ error: "missing 'file'" }, { status: 400 });
