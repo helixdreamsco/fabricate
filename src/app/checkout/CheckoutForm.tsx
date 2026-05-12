@@ -19,6 +19,7 @@ import {
 } from "@/lib/money";
 import type { MakerProfileSummary } from "@/lib/maker-profile";
 import { expandMakerLocations } from "@/lib/maker-profile";
+import { track } from "@/lib/analytics";
 
 /**
  * Post-job flow.
@@ -51,6 +52,11 @@ export function CheckoutForm({
   const [notes, setNotes] = React.useState(draft.notes ?? "");
   const [prioritizedMakerId, setPrioritizedMakerId] = React.useState<string | null>(null);
   const [makers, setMakers] = React.useState<MakerProfileSummary[]>([]);
+  // Affiliate creator-waiver eligibility — fetched once and applied to the
+  // displayed price + the manifest sent to /api/jobs. Server is the source
+  // of truth; on capture it'll recheck and lock in the bonus.
+  const [creatorReferralEligible, setCreatorReferralEligible] =
+    React.useState(false);
   // Editable price — defaults to the auto-computed quote for known formats
   // and is required for STEP files (where we have no volume to estimate from).
   const [pricePounds, setPricePounds] = React.useState("");
@@ -73,6 +79,13 @@ export function CheckoutForm({
     });
   }, []);
 
+  React.useEffect(() => {
+    if (!signedIn) return;
+    void fetch("/api/affiliate/me")
+      .then((r) => (r.ok ? r.json() : { eligible: false }))
+      .then((j) => setCreatorReferralEligible(Boolean(j?.eligible)));
+  }, [signedIn]);
+
   if (!draft.analysis || !draft.file) return null;
 
   // STEP files that tessellated successfully behave like STL/3MF (real
@@ -88,6 +101,7 @@ export function CheckoutForm({
     infillPct: draft.infill,
     quantity: draft.quantity,
     delivery: "pickup",
+    creatorReferralEligible,
   });
 
   // Seed the editable price field from the auto-quote on first render. STEP
@@ -136,6 +150,12 @@ export function CheckoutForm({
     }
     setPending(true);
     setError(null);
+    track("checkout_submitted", {
+      material: draft.material ?? "unknown",
+      quality: String(draft.quality ?? ""),
+      quantity: draft.quantity ?? 1,
+      price_gbp: Number(effectivePrice.toFixed(2)),
+    });
     try {
       const fd = new FormData();
       fd.append("file", draft.file);
@@ -167,6 +187,7 @@ export function CheckoutForm({
         notes: notes || null,
         quotedPricePence: poundsToPence(effectivePrice),
         minPricePence: poundsToPence(minPrice),
+        serviceFeeSnapshotPence: poundsToPence(quote.serviceFeeListPrice),
         // Pickup location defaults to the assigned maker's postcode; creator
         // can add a free-text note here suggesting an alternate meet-up.
         pickupPostcode: null,
@@ -189,6 +210,10 @@ export function CheckoutForm({
         throw new Error(j.error ?? `post failed (${jobRes.status})`);
       }
       const { job } = await jobRes.json();
+      track("job_posted", {
+        job_id: job.id,
+        price_gbp: Number(effectivePrice.toFixed(2)),
+      });
       router.push(`/jobs/${job.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -301,6 +326,23 @@ export function CheckoutForm({
                       <span className="font-medium text-[#7c3aed]">£0</span>.
                       You&rsquo;re saving {formatGBP(quote.serviceFeeListPrice)} on
                       this order. Limited time only.
+                    </div>
+                  </div>
+                </div>
+              ) : quote.affiliateWaiverApplied ? (
+                <div className="border-t border-black/[0.06] bg-emerald-50 px-5 py-3.5 flex items-start gap-3">
+                  <Sparkles className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" strokeWidth={2.4} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-emerald-700 font-bold mb-0.5">
+                      Affiliate code applied
+                    </div>
+                    <div className="text-[12px] font-light text-black/70 leading-snug">
+                      Service fee waived —{" "}
+                      <span className="line-through text-black/40">
+                        {formatGBP(quote.serviceFeeListPrice)}
+                      </span>{" "}
+                      <span className="font-medium text-emerald-700">£0</span>.
+                      First-job perk from your referral.
                     </div>
                   </div>
                 </div>

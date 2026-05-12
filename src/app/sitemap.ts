@@ -12,6 +12,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticEntries: MetadataRoute.Sitemap = [
     { url: `${base}/`, lastModified: now, changeFrequency: "weekly", priority: 1.0 },
+    { url: `${base}/3d-printing-london`, lastModified: now, changeFrequency: "weekly", priority: 0.95 },
+    { url: `${base}/cosplay-3d-printing`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/custom-keycaps`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${base}/makers`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/communities`, lastModified: now, changeFrequency: "weekly", priority: 0.7 },
     { url: `${base}/track`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },

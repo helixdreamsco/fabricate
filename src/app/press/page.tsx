@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { Card } from "@/components/ui/Card";
+
+export const metadata: Metadata = {
+  title: "About Fabricate · London's 3D printing marketplace",
+  description:
+    "Fabricate is a London-based 3D printing marketplace by HELIXDREAMSCO LTD. Press info, brand context, and how the platform connects local makers with creators.",
+  alternates: { canonical: "/press" },
+};
 
 function InstagramGlyph({ className }: { className?: string }) {
   return (

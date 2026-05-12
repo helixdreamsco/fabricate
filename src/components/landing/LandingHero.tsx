@@ -11,6 +11,7 @@ import { MATERIALS } from "@/lib/catalog";
 import { postAnalyze } from "@/lib/api";
 import { describeUploadError, preflightUploadError } from "@/lib/upload-error";
 import { SlicerChip } from "@/components/shell/SlicerChip";
+import { track } from "@/lib/analytics";
 
 export function LandingHero() {
   const router = useRouter();
@@ -38,6 +39,10 @@ export function LandingHero() {
       ]);
       const partColors = defaultPartColors(analysis, MATERIALS[0].colors[0].hex);
       set({ file: f, analysis, serverAnalysis, partColors });
+      track("upload_started", {
+        format: f.name.split(".").pop()?.toLowerCase() ?? "unknown",
+        size_kb: Math.round(f.size / 1024),
+      });
       // Stash the file in IndexedDB so /configure can rehydrate after the
       // sign-in round-trip wipes in-memory React state.
       await savePendingUpload(f).catch((err) =>
@@ -60,11 +65,11 @@ export function LandingHero() {
           <div className="inline-flex items-center gap-2 h-7 pl-2 pr-3 rounded-full border border-black/10 bg-white">
             <StatusDot tone="ready" pulse />
             <MonoLabel size="sm" className="!text-black">
-              Network · Live
+              London · live
             </MonoLabel>
           </div>
           <MonoLabel size="sm">
-            41 makers online · typical quote in seconds
+            For cosplayers, designers, makers & creators
           </MonoLabel>
           <SlicerChip />
         </div>
@@ -72,19 +77,19 @@ export function LandingHero() {
         {/* Headline */}
         <div className="max-w-5xl">
           <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-[120px] leading-[0.95] font-black tracking-tight">
-            <span className="shimmer-text">Upload.</span>{" "}
+            <span className="shimmer-text">Make</span>{" "}
             <span className="shimmer-text" style={{ animationDelay: "0.8s" }}>
-              Pay.
+              it
             </span>{" "}
             <span className="shimmer-text" style={{ animationDelay: "1.6s" }}>
-              Print.
+              real.
             </span>
           </h1>
           <p className="mt-8 max-w-2xl text-lg md:text-xl font-light text-black/60 leading-relaxed">
-            The 2-tap 3D printing marketplace. Drop an STL, we&rsquo;ll quote
-            it in real time against every hobbyist printer on the network.
-            Pick up when it&rsquo;s ready, or opt for a courier where
-            available.
+            London&rsquo;s 3D-printing marketplace for creative work. Drop your
+            file — cosplay props, custom keycaps, jewellery, minis, prototypes
+            — and a nearby maker prints it. Pickup or courier. Pieces of 1 to
+            10, not factory runs.
           </p>
         </div>
 

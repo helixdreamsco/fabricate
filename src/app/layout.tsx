@@ -5,6 +5,7 @@ import { TopNav } from "@/components/shell/TopNav";
 import { PromoBanner } from "@/components/shell/PromoBanner";
 import { OrderProvider } from "@/lib/order-store";
 import { SessionProviderClient } from "@/components/auth/SessionProviderClient";
+import { PlausibleScript } from "@/components/analytics/PlausibleScript";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -25,17 +26,23 @@ export const metadata: Metadata = {
     template: "%s · Fabricate",
   },
   description:
-    "Bring your design to life with London's makers. Upload an STL, get an instant quote, and receive your part — minis, jewellery, cosplay, prototypes, custom keycaps. Local pickup, fast turnaround.",
+    "London's 3D printing marketplace for creators — cosplay props, custom keycaps, jewellery, minis and prototypes printed by nearby makers. Upload a file, get an instant quote, pick up the part. 1–10 pieces, not factory runs.",
   applicationName: "Fabricate",
   keywords: [
+    "3d printing london",
     "3d printing service london",
-    "custom 3d printing",
-    "3d print on demand",
-    "miniature printing london",
+    "3d printing near me",
+    "custom 3d printing uk",
+    "3d print on demand london",
+    "cosplay 3d printing",
     "cosplay prop printing",
-    "indie hardware prototyping",
+    "custom keycaps uk",
+    "custom keycaps 3d print",
+    "miniature printing london",
+    "dnd miniature printing uk",
     "fashion 3d printing",
-    "custom keycaps",
+    "jewellery 3d printing",
+    "indie hardware prototyping",
     "stl to part",
     "rapid prototyping london",
     "3d printing marketplace uk",
@@ -55,13 +62,13 @@ export const metadata: Metadata = {
     url: "https://fabricate.helixdreams.co",
     title: "Fabricate — London's 3D Printing Marketplace",
     description:
-      "Upload an STL, get an instant quote, and a London-based maker brings your design to life. For creators, makers, and indie hardware founders.",
+      "Make it real. London's 3D-printing marketplace for cosplayers, designers, makers and creators. Upload a file, get an instant quote, a nearby maker prints it.",
   },
   twitter: {
     card: "summary_large_image",
     title: "Fabricate — London's 3D Printing Marketplace",
     description:
-      "Upload an STL, get a quote, get the part. London makers · 0% fees this month.",
+      "Cosplay props, keycaps, jewellery, minis — printed by London makers. 0% platform fees this month.",
   },
   robots: {
     index: true,
@@ -87,6 +94,9 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceMono.variable} h-full antialiased`}
     >
+      <head>
+        <PlausibleScript />
+      </head>
       <body className="min-h-full flex flex-col">
         <SessionProviderClient>
           <OrderProvider>

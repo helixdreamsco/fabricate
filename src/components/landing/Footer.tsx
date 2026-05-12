@@ -11,6 +11,13 @@ const BUYERS: FooterLink[] = [
   { label: "Sign in", href: "/account" },
 ];
 
+const USE_CASES: FooterLink[] = [
+  { label: "3D printing in London", href: "/3d-printing-london" },
+  { label: "Cosplay 3D printing", href: "/cosplay-3d-printing" },
+  { label: "Custom keycaps", href: "/custom-keycaps" },
+  { label: "Communities", href: "/communities" },
+];
+
 const MAKERS: FooterLink[] = [
   { label: "Become a maker", href: "/makers" },
   { label: "Earnings estimator", href: "/makers#estimator" },
@@ -28,7 +35,7 @@ const COMPANY: FooterLink[] = [
 export function Footer() {
   return (
     <footer className="max-w-[1400px] mx-auto px-5 md:px-8 py-16 md:py-20">
-      <div className="border-t border-black/[0.08] pt-10 grid grid-cols-2 md:grid-cols-5 gap-8">
+      <div className="border-t border-black/[0.08] pt-10 grid grid-cols-2 md:grid-cols-6 gap-8">
         <div className="col-span-2 md:col-span-2">
           <Link
             href="/"
@@ -48,6 +55,7 @@ export function Footer() {
           </div>
         </div>
         <FooterCol title="Buyers" links={BUYERS} />
+        <FooterCol title="Use cases" links={USE_CASES} />
         <FooterCol title="Makers" links={MAKERS} />
         <FooterCol title="Fabricate" links={COMPANY} />
       </div>
