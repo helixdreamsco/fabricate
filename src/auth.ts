@@ -2,9 +2,15 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { cookies } from "next/headers";
 import { prisma } from "./lib/prisma";
 import { authConfig } from "./auth.config";
 import { verifyPassword } from "./lib/passwords";
+import {
+  AFFILIATE_COOKIE,
+  attachCodeOnce,
+  lookupCodeForRedemption,
+} from "./lib/affiliate";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -51,6 +57,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  events: {
+    // First-time signup (any provider — Google OAuth, Credentials).
+    // If the visitor landed via /r/<code> we have an `aff_code` cookie
+    // — attach it once + clear. Failures are swallowed: a missing /
+    // invalid code should never block account creation.
+    async createUser({ user }) {
+      try {
+        if (!user.id) return;
+        const cookieStore = await cookies();
+        const codeFromCookie = cookieStore.get(AFFILIATE_COOKIE)?.value;
+        if (!codeFromCookie) return;
+        const lookup = await lookupCodeForRedemption(codeFromCookie, user.id);
+        if (lookup.ok) {
+          await attachCodeOnce(user.id, lookup.codeId);
+        }
+        cookieStore.delete(AFFILIATE_COOKIE);
+      } catch {
+        // Cookie store can be read-only in some runtime modes (Edge during
+        // OAuth callbacks). The redemption fallback at /account/affiliate
+        // covers the cookie-still-present case.
+      }
+    },
+  },
   callbacks: {
     // On first sign-in, NextAuth passes the DB user; stash its id into the JWT
     // so we can resolve it cheaply on every request without hitting the DB.

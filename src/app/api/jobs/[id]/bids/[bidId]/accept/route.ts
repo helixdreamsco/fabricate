@@ -6,6 +6,7 @@ import { recordJobEvent } from "@/lib/jobs";
 import { paymentMode, simCaptured, verifyCapturedIntent, type CapturedIntent } from "@/lib/payments";
 import { effectiveCompletionPhotoFee } from "@/lib/money";
 import { notifyBidAccepted, notifyBidDeclined } from "@/lib/notifications";
+import { applyAffiliateAccrual } from "@/lib/affiliate-accrual";
 
 type Params = { params: Promise<{ id: string; bidId: string }> };
 
@@ -100,8 +101,20 @@ export async function POST(req: Request, { params }: Params) {
     }
   }
 
-  const platformFeePence = job.platformFeePence;
+  const defaultPlatformFeePence = job.platformFeePence;
   const result = await prisma.$transaction(async (tx) => {
+    // Resolve affiliate accrual first — may force-zero the platform fee
+    // on the maker-referred case so the maker keeps the full bid.
+    const accrual = await applyAffiliateAccrual({
+      tx,
+      jobId: job.id,
+      creatorUserId: job.creatorId,
+      makerUserId: bid.maker.userId,
+      defaultPlatformFeePence,
+    });
+    const platformFeePence =
+      accrual.overridePlatformFeePence ?? defaultPlatformFeePence;
+
     const payment = await tx.payment.create({
       data: {
         jobId: job.id,
@@ -131,7 +144,7 @@ export async function POST(req: Request, { params }: Params) {
       where: { id: job.id },
       data: { assignedMakerId: bid.makerId, status: "ASSIGNED" },
     });
-    return { payment, job: updatedJob };
+    return { payment, job: updatedJob, accrualSummary: accrual.summary };
   });
 
   await recordJobEvent({
@@ -150,6 +163,7 @@ export async function POST(req: Request, { params }: Params) {
       paymentId: result.payment.id,
       amountPence: bid.priceOfferPence,
       mode: captured.mode,
+      affiliate: result.accrualSummary,
     },
   });
   await recordJobEvent({

@@ -120,6 +120,7 @@ function EmailAuthForm({
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [name, setName] = React.useState("");
+  const [affiliateCode, setAffiliateCode] = React.useState("");
   const [pending, setPending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [postSignup, setPostSignup] = React.useState<string | null>(null);
@@ -135,7 +136,12 @@ function EmailAuthForm({
         const r = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password, name: name || null }),
+          body: JSON.stringify({
+            email,
+            password,
+            name: name || null,
+            affiliateCode: affiliateCode.trim() || null,
+          }),
         });
         if (!r.ok) {
           const j = await r.json().catch(() => ({}));
@@ -242,6 +248,26 @@ function EmailAuthForm({
           maxLength={200}
         />
       </div>
+      {isSignup ? (
+        <div>
+          <label htmlFor="signup-affiliate" className={labelCls}>
+            Affiliate code{" "}
+            <span className="text-black/35 normal-case tracking-normal font-light">
+              (optional)
+            </span>
+          </label>
+          <input
+            id="signup-affiliate"
+            type="text"
+            autoComplete="off"
+            value={affiliateCode}
+            onChange={(e) => setAffiliateCode(e.target.value)}
+            placeholder="NOFEES-FRIEND"
+            className={inputCls}
+            maxLength={48}
+          />
+        </div>
+      ) : null}
       {error ? (
         <div className="text-[12px] text-red-700 font-light leading-snug">
           {error}

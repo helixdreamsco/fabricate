@@ -54,6 +54,15 @@ model User {
   // PRIVACY_VERSION constants and forces a re-acceptance trip when below.
   acceptedTermsVersion   Int @default(0)
   acceptedPrivacyVersion Int @default(0)
+
+  // Affiliate referral. `referredByCodeId` is set at most once per user
+  // (signup or one-time settings redemption) and is then immutable —
+  // enforced at the API layer. `affiliateBonusClaimed` flips true on the
+  // first successful payment capture and prevents re-triggering.
+  affiliateCodes        AffiliateCode[] @relation("AffiliateCodeOwner")
+  referredByCodeId      String?
+  referredByCode        AffiliateCode?  @relation("AffiliateCodeRedemption", fields: [referredByCodeId], references: [id])
+  affiliateBonusClaimed Boolean         @default(false)
 }
 
 model Account {
@@ -423,6 +432,21 @@ model Job {
   minPricePence    Int @default(0)
   platformFeePence Int @default(0)
 
+  // Snapshot of the creator's affiliate-referral state at job creation.
+  // True = creator was a referred user with no prior bonus claim, so the
+  // service fee was waived in the creator-facing quote. At capture time
+  // we use this to decide whether to accrue the maker-side cut to the
+  // creator's affiliate. If a concurrent earlier job already claimed
+  // the bonus, this snapshot is ignored.
+  creatorAffiliateWaiverApplied Boolean @default(false)
+
+  // Gross service fee (£2 + 10% of the printing subtotal, in pence) at
+  // the time of job creation, before any waiver. Used at capture time
+  // for the maker-referred case: the creator's service fee is redirected
+  // to the maker's affiliate. Stored even when the creator waiver fired
+  // — it represents the "what the creator-side fee was worth" anchor.
+  serviceFeeSnapshotPence Int @default(0)
+
   // Optional creator add-on: maker must upload a photo of the finished print
   // before the job can be marked ready for pickup. Fee is captured on top of
   // the bid amount at acceptance and forwarded to the maker as a payout
@@ -482,14 +506,15 @@ model Job {
   // 14-day reveal cutoff on mutual reviews.
   completedAt DateTime?
 
-  bids         JobBid[]
-  events       JobEvent[]
-  messages     JobMessage[]
-  pickupTokens PickupToken[]
-  payment      Payment?
-  bookmarks    MakerJobBookmark[]
-  reviews      Review[]
-  disputes     Dispute[]
+  bids             JobBid[]
+  events           JobEvent[]
+  messages         JobMessage[]
+  pickupTokens     PickupToken[]
+  payment          Payment?
+  bookmarks        MakerJobBookmark[]
+  reviews          Review[]
+  disputes         Dispute[]
+  affiliateEarnings AffiliateEarning[]
 
   @@index([status, createdAt])
   @@index([creatorId])
@@ -870,4 +895,90 @@ model LegalConsent {
   acceptedAt DateTime @default(now())
 
   @@index([userId, kind, acceptedAt])
+}
+
+// ──────────────────────────────────────────────────────────────
+// Affiliate program
+// ──────────────────────────────────────────────────────────────
+// Anyone can mint one shareable code (e.g. NOFEES-MILES). When a new user
+// redeems it (signup or one-time settings entry), their first successful
+// paid job triggers a kickback: the referred user's own fee is waived,
+// and the *counterparty's* fee — which Fabricate would otherwise keep —
+// accrues to the affiliate's balance. Balances ≥ £20 are paid out via
+// Stripe Connect Express. Collision (both parties referred, both unclaimed):
+// no waivers, both affiliates get a 50p consolation from Fabricate's pocket.
+
+model AffiliateCode {
+  id      String @id @default(cuid())
+  code    String @unique
+  ownerId String
+  owner   User   @relation("AffiliateCodeOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Accumulated in pence. Decremented on payout.
+  balancePence        Int @default(0)
+  lifetimeEarnedPence Int @default(0)
+  paidOutPence        Int @default(0)
+
+  // Stripe Connect Express account that affiliate payouts transfer to.
+  // Maker affiliates can reuse their MakerProfile.stripeAccountId
+  // (copied on code mint). Non-maker affiliates onboard separately
+  // via /api/affiliate/onboard. The flag is denormalised from Stripe
+  // and may lag behind their actual account state.
+  stripeAccountId  String?
+  stripeOnboarded  Boolean @default(false)
+
+  redemptions User[]              @relation("AffiliateCodeRedemption")
+  earnings    AffiliateEarning[]
+  payouts     AffiliatePayout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model AffiliateEarning {
+  id     String        @id @default(cuid())
+  codeId String
+  code   AffiliateCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  amountPence Int
+
+  // "creator_referral" — referred creator's first job; we redirect the
+  //                     maker-side platform cut to this affiliate.
+  // "maker_referral"   — referred maker's first job; we redirect the
+  //                     creator-side service fee to this affiliate.
+  // "collision"        — both sides referred + unclaimed; flat 50p
+  //                     consolation paid from Fabricate's pocket.
+  reason String
+
+  createdAt DateTime @default(now())
+
+  // One earning per code per job — collision case generates two rows
+  // (different codes) on the same job, so jobId alone isn't unique.
+  @@unique([jobId, codeId])
+  @@index([codeId, createdAt])
+}
+
+model AffiliatePayout {
+  id     String        @id @default(cuid())
+  codeId String
+  code   AffiliateCode @relation(fields: [codeId], references: [id], onDelete: Cascade)
+
+  amountPence Int
+
+  // PENDING | PAID | FAILED
+  status           String  @default("PENDING")
+  stripeTransferId String? @unique
+  failureReason    String?
+  mode             String  @default("sim")
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([codeId, status])
 }

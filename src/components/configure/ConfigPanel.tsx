@@ -114,6 +114,17 @@ export function ConfigPanel() {
     [draft.partColors],
   );
 
+  // Affiliate creator-waiver eligibility — referred user, first paid job
+  // not yet captured. Fetched once; defaults to false (the safe value).
+  const [creatorReferralEligible, setCreatorReferralEligible] =
+    React.useState(false);
+  React.useEffect(() => {
+    void fetch("/api/affiliate/me")
+      .then((r) => (r.ok ? r.json() : { eligible: false }))
+      .then((j) => setCreatorReferralEligible(Boolean(j?.eligible)))
+      .catch(() => setCreatorReferralEligible(false));
+  }, []);
+
   // When courier is selected and we've got a live quote, swap the catalogue
   // £7.50 placeholder for the actual provider price.
   const deliveryFeeOverride =
@@ -135,6 +146,7 @@ export function ConfigPanel() {
       freeMode: draft.community?.freeMode ?? false,
       colorCount,
       deliveryFeeOverride,
+      creatorReferralEligible,
     });
   }, [
     volumeCm3,
@@ -147,6 +159,7 @@ export function ConfigPanel() {
     draft.community?.discountPct,
     draft.community?.freeMode,
     colorCount,
+    creatorReferralEligible,
     deliveryFeeOverride,
   ]);
 
@@ -196,31 +209,41 @@ export function ConfigPanel() {
 
   // Prefer the server quote total over the client estimate when it's fresh
   // (i.e. no pending verification). The server (Python) doesn't yet know
-  // about the launch promo, so we waive the service fee client-side and
-  // adjust the total accordingly.
+  // about the launch promo, free-mode waiver, or affiliate creator waiver
+  // — so we apply all three client-side and adjust the total accordingly.
   const promoApplied = isPlatformFeePromoActive();
   const quote =
     draft.quoteStatus === "verified" && draft.serverQuote
-      ? {
-          weightG: draft.serverQuote.quote.weight_g,
-          estMinutes: draft.serverQuote.quote.time_minutes,
-          materialCost: draft.serverQuote.quote.material_cost,
-          machineCost: draft.serverQuote.quote.machine_cost,
-          serviceFee: promoApplied ? 0 : draft.serverQuote.quote.service_fee,
-          serviceFeeListPrice: draft.serverQuote.quote.service_fee,
-          promoApplied,
-          delivery: draft.serverQuote.quote.delivery,
-          subtotal: draft.serverQuote.quote.subtotal,
-          discountApplied: draft.serverQuote.quote.discount_applied ?? 0,
-          multiMaterialSurcharge:
-            draft.serverQuote.quote.multi_material_surcharge ?? 0,
-          total:
-            draft.serverQuote.quote.total -
-            (promoApplied ? draft.serverQuote.quote.service_fee : 0),
-          source: draft.serverQuote.quote.engine,
-        }
+      ? (() => {
+          const sq = draft.serverQuote.quote;
+          const freeJob = sq.subtotal === 0;
+          const affiliateWaiverApplied =
+            creatorReferralEligible && !freeJob && !promoApplied;
+          const waiveFee = promoApplied || freeJob || affiliateWaiverApplied;
+          return {
+            weightG: sq.weight_g,
+            estMinutes: sq.time_minutes,
+            materialCost: sq.material_cost,
+            machineCost: sq.machine_cost,
+            serviceFee: waiveFee ? 0 : sq.service_fee,
+            serviceFeeListPrice: sq.service_fee,
+            promoApplied,
+            affiliateWaiverApplied,
+            freeJob,
+            delivery: sq.delivery,
+            subtotal: sq.subtotal,
+            discountApplied: sq.discount_applied ?? 0,
+            multiMaterialSurcharge: sq.multi_material_surcharge ?? 0,
+            total: sq.total - (waiveFee ? sq.service_fee : 0),
+            source: sq.engine,
+          };
+        })()
       : estimate
-        ? { ...estimate, source: "client estimate" }
+        ? {
+            ...estimate,
+            freeJob: estimate.subtotal === 0,
+            source: "client estimate",
+          }
         : null;
 
   const onMaterial = (key: MaterialKey) => {
@@ -831,26 +854,37 @@ export function ConfigPanel() {
               detail={formatDuration(quote.estMinutes / 60)}
               value={formatGBP(quote.machineCost)}
             />
-            <Row
-              label="Service"
-              detail={
-                quote.promoApplied
-                  ? "Waived · launch promo"
-                  : "QC + escrow"
-              }
-              value={
-                quote.promoApplied ? (
-                  <span className="inline-flex items-baseline gap-1.5">
-                    <span className="text-black/35 line-through font-light">
-                      {formatGBP(quote.serviceFeeListPrice)}
+            {quote.freeJob ? null : (
+              <Row
+                label="Service"
+                detail={
+                  quote.promoApplied
+                    ? "Waived · launch promo"
+                    : quote.affiliateWaiverApplied
+                      ? "Waived · affiliate code"
+                      : "QC + escrow"
+                }
+                value={
+                  quote.promoApplied ? (
+                    <span className="inline-flex items-baseline gap-1.5">
+                      <span className="text-black/35 line-through font-light">
+                        {formatGBP(quote.serviceFeeListPrice)}
+                      </span>
+                      <span className="text-[#7c3aed] font-bold">£0.00</span>
                     </span>
-                    <span className="text-[#7c3aed] font-bold">£0.00</span>
-                  </span>
-                ) : (
-                  formatGBP(quote.serviceFee)
-                )
-              }
-            />
+                  ) : quote.affiliateWaiverApplied ? (
+                    <span className="inline-flex items-baseline gap-1.5">
+                      <span className="text-black/35 line-through font-light">
+                        {formatGBP(quote.serviceFeeListPrice)}
+                      </span>
+                      <span className="text-emerald-700 font-bold">£0.00</span>
+                    </span>
+                  ) : (
+                    formatGBP(quote.serviceFee)
+                  )
+                }
+              />
+            )}
             <Row
               label="Delivery"
               detail={

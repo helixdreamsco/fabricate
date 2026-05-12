@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import {
   hashPassword,
@@ -7,6 +8,12 @@ import {
 } from "@/lib/passwords";
 import { issueAuthToken } from "@/lib/auth-tokens";
 import { notifyVerifyEmail } from "@/lib/notifications";
+import {
+  AFFILIATE_COOKIE,
+  attachCodeOnce,
+  lookupCodeForRedemption,
+  normaliseCode,
+} from "@/lib/affiliate";
 
 export const runtime = "nodejs";
 
@@ -14,6 +21,10 @@ const SignUpSchema = z.object({
   email: z.string().email().max(254).transform((s) => s.trim().toLowerCase()),
   password: z.string().min(1).max(200),
   name: z.string().trim().min(1).max(80).optional().nullable(),
+  // Optional affiliate code. If invalid or self-owned it's silently
+  // ignored — we don't want signup to fail because someone fat-fingered
+  // a referral code.
+  affiliateCode: z.string().trim().min(1).max(48).optional().nullable(),
 });
 
 /**
@@ -39,7 +50,16 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
-  const { email, password, name } = parsed.data;
+  const { email, password, name, affiliateCode } = parsed.data;
+
+  // Read the cookie too — set when the visitor lands via /r/<code>. The
+  // form value (if explicitly entered) takes precedence over the cookie.
+  const cookieStore = await cookies();
+  const codeFromCookie = cookieStore.get(AFFILIATE_COOKIE)?.value ?? null;
+  const codeCandidate =
+    (affiliateCode && normaliseCode(affiliateCode)) ||
+    (codeFromCookie && normaliseCode(codeFromCookie)) ||
+    null;
 
   const strength = checkPasswordStrength(password);
   if (!strength.ok) {
@@ -55,6 +75,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  let userId: string;
   if (existing) {
     // User row exists (probably from Google OAuth) — set / refresh their
     // password and re-issue the verification.
@@ -66,14 +87,28 @@ export async function POST(req: Request) {
         ...(name && !existing.name ? { name } : {}),
       },
     });
+    userId = existing.id;
   } else {
-    await prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         email,
         name: name ?? null,
         passwordHash,
       },
     });
+    userId = created.id;
+  }
+
+  // Attempt affiliate attachment. Only lands for users with no prior
+  // redemption — so re-running signup for an existing Google user
+  // doesn't reassign their referrer.
+  if (codeCandidate) {
+    const lookup = await lookupCodeForRedemption(codeCandidate, userId);
+    if (lookup.ok) {
+      await attachCodeOnce(userId, lookup.codeId);
+    }
+    // Clear the cookie either way — we've made our attempt.
+    cookieStore.delete(AFFILIATE_COOKIE);
   }
 
   const { token } = await issueAuthToken({ email, purpose: "verify_email" });

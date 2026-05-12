@@ -33,6 +33,9 @@ const CreateSchema = z.object({
   // Auto-estimate snapshot. Creator's quoted price must be >= this. Client
   // computes via estimateQuote(); server stores it for audit + later UI.
   minPricePence: z.number().int().nonnegative(),
+  // Gross service fee (£2 + 10% of subtotal) in pence at quote time —
+  // used for the maker-referred affiliate accrual case at capture.
+  serviceFeeSnapshotPence: z.number().int().nonnegative().optional(),
 
   // All pickup fields optional — pickup defaults to the assigned maker's
   // location. Creator only fills these if they want to suggest a meet-up
@@ -78,6 +81,18 @@ export async function POST(req: Request) {
     );
   }
 
+  // Snapshot the creator's affiliate-referral state at job creation. The
+  // 8% platform cut is still computed (it's the maker-side cut), just
+  // earmarked at capture for the affiliate's balance instead of Fabricate.
+  const creatorAffiliateState = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { referredByCodeId: true, affiliateBonusClaimed: true },
+  });
+  const creatorAffiliateWaiverApplied = Boolean(
+    creatorAffiliateState?.referredByCodeId &&
+      !creatorAffiliateState.affiliateBonusClaimed,
+  );
+
   const platformFee = platformFeePenceFor(d.quotedPricePence);
   const requirePhoto = d.requireCompletionPhoto ?? false;
   const testStripPaid = d.testStripPaid ?? true;
@@ -110,6 +125,8 @@ export async function POST(req: Request) {
       quotedPricePence: d.quotedPricePence,
       minPricePence: d.minPricePence,
       platformFeePence: platformFee,
+      creatorAffiliateWaiverApplied,
+      serviceFeeSnapshotPence: d.serviceFeeSnapshotPence ?? 0,
       pickupPostcode: d.pickupPostcode ?? null,
       pickupLat: d.pickupLat ?? null,
       pickupLng: d.pickupLng ?? null,

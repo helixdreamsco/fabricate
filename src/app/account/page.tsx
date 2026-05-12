@@ -152,6 +152,15 @@ function SignedInView({
             </div>
             <div className="text-sm font-medium mt-1">An order</div>
           </Link>
+          <Link
+            href="/account/affiliate"
+            className="col-span-2 px-4 py-3 rounded-xl border border-black/10 hover:border-black/30 bg-white text-center transition-colors"
+          >
+            <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-black/45">
+              Affiliate
+            </div>
+            <div className="text-sm font-medium mt-1">Code &amp; rewards</div>
+          </Link>
         </div>
 
         <div className="pt-4 border-t border-black/[0.06] flex justify-end">

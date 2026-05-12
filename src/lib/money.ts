@@ -21,9 +21,10 @@ export function formatGbp(pence: number): string {
 import { isPlatformFeePromoActive } from "./promotions";
 
 /** Default platform fee: 8% of quoted price, minimum 50p.
- *  Returns 0 while the launch promo is active (Fabricate gives up its
- *  cut so the maker keeps the full bid). */
+ *  Returns 0 when the maker is charging nothing (community free jobs)
+ *  or while the launch promo is active. */
 export function platformFeePenceFor(amountPence: number): number {
+  if (amountPence <= 0) return 0;
   if (isPlatformFeePromoActive()) return 0;
   return Math.max(50, Math.round(amountPence * 0.08));
 }

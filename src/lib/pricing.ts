@@ -20,14 +20,17 @@ export type Quote = {
   estMinutes: number;
   materialCost: number;
   machineCost: number;
-  /** Actually charged service fee (0 during the launch promo). */
+  /** Actually charged service fee (0 during the launch promo, on
+   *  free-mode jobs, or when the affiliate creator-waiver fires). */
   serviceFee: number;
-  /** What the service fee would be without any promotion — for the
+  /** What the service fee would be without any waiver — for the
    *  strikethrough display in the breakdown. Equal to serviceFee when
-   *  no promo is active. */
+   *  no waiver is active. */
   serviceFeeListPrice: number;
-  /** Convenience flag for UI callouts. */
+  /** Launch promo. */
   promoApplied: boolean;
+  /** Affiliate creator-waiver — referred creator's first paid job. */
+  affiliateWaiverApplied: boolean;
   delivery: number;
   subtotal: number;
   discountApplied: number; // £ saved vs list price (before service fee)
@@ -55,6 +58,7 @@ export function estimateQuote({
   freeMode = false,
   colorCount = 1,
   deliveryFeeOverride,
+  creatorReferralEligible = false,
 }: {
   volumeCm3: number;
   material: MaterialKey;
@@ -68,6 +72,10 @@ export function estimateQuote({
   colorCount?: number;
   /** Override the static catalogue delivery fee with a live courier quote. */
   deliveryFeeOverride?: number;
+  /** When true, the creator is a referred user on their first paid job —
+   *  the service fee is dropped to 0 (the maker-side cut still fires
+   *  and gets redirected to the affiliate at capture time). */
+  creatorReferralEligible?: boolean;
 }): Quote {
   const mat = MATERIALS.find((m) => m.key === material)!;
   const q = QUALITIES.find((qq) => qq.key === quality)!;
@@ -95,13 +103,18 @@ export function estimateQuote({
     subtotal = listSubtotal * (1 - Math.min(100, Math.max(0, discountPct)) / 100);
 
   const discountApplied = listSubtotal - subtotal;
-  // Service fee = £2 base + 10% of the printing subtotal. £2 floor when the
-  // subtotal is zero (free-mode community jobs). During the launch promo
-  // we waive it entirely — list price stays computed for the
-  // strikethrough display.
+  // Service fee = £2 base + 10% of the printing subtotal. Waivers that
+  // bring it to 0:
+  //   - free-mode / £0 subtotal (no money changes hands)
+  //   - launch promo
+  //   - affiliate creator-waiver on a referred user's first paid job
+  // List price is still computed for the strikethrough display.
   const serviceFeeListPrice = SERVICE_FEE_BASE_GBP + subtotal * SERVICE_FEE_PCT;
   const promoApplied = isPlatformFeePromoActive();
-  const serviceFee = promoApplied ? 0 : serviceFeeListPrice;
+  const freeJob = subtotal === 0;
+  const affiliateWaiverApplied = creatorReferralEligible && !freeJob;
+  const serviceFee =
+    promoApplied || freeJob || affiliateWaiverApplied ? 0 : serviceFeeListPrice;
 
   // Per-extra-colour purge surcharge. Applied per part (not multiplied by
   // quantity since AMS sequences colours within a single multi-part job).
@@ -120,6 +133,7 @@ export function estimateQuote({
     serviceFee,
     serviceFeeListPrice,
     promoApplied,
+    affiliateWaiverApplied,
     delivery: deliveryFee,
     subtotal,
     discountApplied,

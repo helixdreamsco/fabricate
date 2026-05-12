@@ -102,7 +102,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ steps.build_env.outputs.stripe_pub }}
             NEXT_PUBLIC_APP_URL=https://fabricate.helixdreams.co
-            NEXT_PUBLIC_PROMO_NO_FEE=true
+            NEXT_PUBLIC_PROMO_NO_FEE=false
 
       # ── Migrate database via Cloud SQL Auth Proxy ────────────────────
       - name: Set up Node
@@ -141,7 +141,7 @@ jobs:
             --add-cloudsql-instances ${{ secrets.CLOUD_SQL_INSTANCE }} \
             --add-volume name=uploads,type=cloud-storage,bucket=${{ secrets.CLOUD_STORAGE_BUCKET }} \
             --add-volume-mount volume=uploads,mount-path=/data \
-            --set-env-vars "^|^DATA_DIR=/data|NODE_ENV=production|AUTH_TRUST_HOST=true|AUTH_URL=https://fabricate.helixdreams.co|APP_URL=https://fabricate.helixdreams.co|NEXT_PUBLIC_APP_URL=https://fabricate.helixdreams.co|NEXT_PUBLIC_PROMO_NO_FEE=true|NEXT_TELEMETRY_DISABLED=1|EMAIL_FROM=Fabricate <noreply@helixdreams.co>|RESEND_FROM=Fabricate <noreply@helixdreams.co>" \
+            --set-env-vars "^|^DATA_DIR=/data|NODE_ENV=production|AUTH_TRUST_HOST=true|AUTH_URL=https://fabricate.helixdreams.co|APP_URL=https://fabricate.helixdreams.co|NEXT_PUBLIC_APP_URL=https://fabricate.helixdreams.co|NEXT_PUBLIC_PROMO_NO_FEE=false|NEXT_TELEMETRY_DISABLED=1|EMAIL_FROM=Fabricate <noreply@helixdreams.co>|RESEND_FROM=Fabricate <noreply@helixdreams.co>" \
             --update-secrets "AUTH_SECRET=AUTH_SECRET:latest,DATABASE_URL=DATABASE_URL:latest,STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=STRIPE_PUBLISHABLE_KEY:latest,STRIPE_IDENTITY_WEBHOOK_SECRET=STRIPE_IDENTITY_WEBHOOK_SECRET:latest,AUTH_GOOGLE_ID=AUTH_GOOGLE_ID:latest,AUTH_GOOGLE_SECRET=AUTH_GOOGLE_SECRET:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
             --service-account ${{ secrets.GCP_DEPLOY_SA }} \
             --memory 1Gi \
