@@ -963,6 +963,42 @@ model AffiliateEarning {
   @@index([codeId, createdAt])
 }
 
+// ──────────────────────────────────────────────────────────────
+// Reddit monitor — tracks posts + comments matching our seed
+// subreddits/keywords. Sweep at /api/reddit-monitor/sweep dedups
+// against this table so the same thread only emails once.
+// ──────────────────────────────────────────────────────────────
+
+model RedditMention {
+  id String @id @default(cuid())
+
+  // Reddit's full id including prefix: t3_xxxxxx for posts,
+  // t1_xxxxxx for comments. Unique constraint = our dedup key.
+  redditId String @unique
+
+  // "post" | "comment"
+  kind String
+
+  subreddit      String
+  authorName     String?
+  // For posts: the post title. For comments: the parent post's title
+  // so the email digest can group by thread.
+  title          String?
+  // Truncated body for the email preview. Full body lives on Reddit.
+  bodyExcerpt    String?
+  url            String
+  matchedKeyword String
+
+  postedAt    DateTime
+  capturedAt  DateTime  @default(now())
+  // Set once the row is included in a sent digest. Lets us re-run
+  // sweeps without re-emailing.
+  notifiedAt  DateTime?
+
+  @@index([capturedAt])
+  @@index([notifiedAt])
+}
+
 model AffiliatePayout {
   id     String        @id @default(cuid())
   codeId String

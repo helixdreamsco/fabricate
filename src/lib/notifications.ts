@@ -511,6 +511,77 @@ export function notifyIssueReported(args: {
 const _chatLastSent = new Map<string, number>();
 const CHAT_DEBOUNCE_MS = 5 * 60 * 1000;
 
+/** Reddit-monitor digest. Sent hourly when there are fresh matches —
+ *  silent when there's nothing new. */
+export function notifyRedditMonitorDigest(args: {
+  to: string | null;
+  matches: Array<{
+    kind: "post" | "comment";
+    subreddit: string;
+    authorName: string | null;
+    title: string | null;
+    bodyExcerpt: string | null;
+    url: string;
+    matchedKeyword: string;
+    postedAt: Date;
+  }>;
+}): void {
+  if (!args.to || args.matches.length === 0) return;
+  const count = args.matches.length;
+  const subject =
+    count === 1
+      ? `Reddit monitor: 1 new mention`
+      : `Reddit monitor: ${count} new mentions`;
+
+  const grouped = new Map<string, typeof args.matches>();
+  for (const m of args.matches) {
+    const arr = grouped.get(m.subreddit) ?? [];
+    arr.push(m);
+    grouped.set(m.subreddit, arr);
+  }
+  const subreddits = Array.from(grouped.keys()).sort();
+
+  const textLines: string[] = [];
+  const htmlSections: string[] = [];
+  for (const sub of subreddits) {
+    const items = grouped.get(sub)!;
+    textLines.push(`\n=== r/${sub} (${items.length}) ===`);
+    htmlSections.push(
+      `<h3 style="margin:24px 0 8px;font-size:14px;color:rgba(0,0,0,0.55);text-transform:uppercase;letter-spacing:0.1em">r/${escapeHtml(sub)} · ${items.length}</h3>`,
+    );
+    for (const m of items) {
+      const when = m.postedAt.toISOString().slice(0, 16).replace("T", " ");
+      const heading = m.title ?? "(no title)";
+      const author = m.authorName ? `u/${m.authorName}` : "anonymous";
+      textLines.push(
+        `- [${m.kind}] ${heading}\n  by ${author} · ${when} · matched "${m.matchedKeyword}"\n  ${m.bodyExcerpt ?? ""}\n  ${m.url}`,
+      );
+      htmlSections.push(
+        `<div style="border:1px solid rgba(0,0,0,0.08);border-radius:8px;padding:12px;margin-bottom:8px">
+           <div style="font-size:11px;color:rgba(0,0,0,0.55);font-family:monospace;text-transform:uppercase;letter-spacing:0.08em">
+             ${m.kind} · ${escapeHtml(author)} · ${when} · matched "${escapeHtml(m.matchedKeyword)}"
+           </div>
+           <div style="font-weight:600;margin-top:4px">${escapeHtml(heading)}</div>
+           ${m.bodyExcerpt ? `<div style="font-size:13px;color:rgba(0,0,0,0.7);margin-top:6px;white-space:pre-wrap">${escapeHtml(m.bodyExcerpt)}</div>` : ""}
+           <div style="margin-top:8px"><a href="${m.url}" style="font-size:12px">Open on Reddit →</a></div>
+         </div>`,
+      );
+    }
+  }
+
+  safe(sendEmail({
+    to: args.to,
+    subject,
+    text:
+      `${count} new mention${count === 1 ? "" : "s"} of 3D-printing keywords on Reddit.\n` +
+      textLines.join("\n"),
+    html:
+      `<p style="margin-top:0">${count} new mention${count === 1 ? "" : "s"} of 3D-printing keywords on Reddit.</p>` +
+      htmlSections.join("\n") +
+      `<p style="font-size:12px;color:rgba(0,0,0,0.5);margin-top:24px">Adjust keywords + subreddits in <code>src/lib/reddit/config.ts</code>.</p>`,
+  }));
+}
+
 export function notifyChatMessage(args: {
   recipientEmail: string | null;
   recipientUserId: string;
