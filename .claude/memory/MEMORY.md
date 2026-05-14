@@ -1,0 +1,13 @@
+- [Fabricate pre-launch gate (lifted 2026-05-05)](project_prelaunch_gate.md) — historic note: Miles overrode the legal/insurance/virtual-office gates and removed the PreLaunchBanner on 2026-05-05; don't keep reminding him
+- [Fabricate build state](project_build_state.md) — what's built (creator flow, communities, multi-material, courier eligibility), what's stubbed (Stripe, courier APIs), and the stack decisions (Prisma 6, SSE chat, owner-pick maker affiliations) — read first before adding features
+- [Fabricate blueprint](project_printloop_blueprint.md) — vision, stack, non-negotiables (server-side slicing, state model); web-only scope; visual inheritance from ~/Desktop/co-lab
+- [Fabricate target network](project_printloop_network.md) — printer archetypes and London university outreach partners for supply-side growth
+- [Legal finalisation status](project_legal_finalisation.md) — terms.md + privacy.md filled with HELIXDREAMSCO LTD details, DRAFT removed; 3 follow-ups before launch (ICO, virtual office, domain email)
+- [Launch checklist (active)](project_launch_checklist.md) — Miles is working through this 2026-04-29 onward; first item is Stripe live keys + Connect + Identity
+- [Stripe setup decisions](project_stripe_setup.md) — Express + destination charges + platform-liable risk/loss; CLI webhook + flow walkthrough still to do
+- [Production deployment state](project_deployment_state.md) — Cloud Run live in europe-west2, fabricate.helixdreams.co cert validating evening 2026-04-29; pickup tomorrow with env vars + OAuth client + consent screen
+- [helixdreamsco lowercase](feedback_helixdreamsco_lowercase.md) — the parent brand name "helixdreamsco" is always written lowercase in UI copy, dashboard fields, and code we author
+- [No automated promotion](feedback_no_automated_promotion.md) — refuse auto-posters/auto-replyers on Reddit/forums; redirect to monitor + personal reply
+- [Affiliate program](project_affiliate_program.md) — shipped 2026-05-12; one code per user, first-paid-job trigger, Plan A collision, £20 Stripe Connect payouts; replaced launch promo
+- [Reddit monitor](project_reddit_monitor.md) — hourly Cloud Scheduler sweep, public JSON path, digest emails; tune via src/lib/reddit/config.ts
+- [Cloud Scheduler jobs](reference_cloud_scheduler_jobs.md) — affiliate-payout-sweep (daily 03:00) + reddit-monitor-sweep (hourly), both in europe-west2
