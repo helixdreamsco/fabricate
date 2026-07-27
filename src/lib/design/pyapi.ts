@@ -22,6 +22,37 @@ export interface DesignArtifacts {
 
 const API_HOST = process.env.API_HOST ?? "http://127.0.0.1:8000";
 
+/**
+ * Cloud Run service-to-service auth: when the API is a private *.run.app
+ * service, requests need an ID token minted by the metadata server for the
+ * service URL audience. Locally (or for any http host) this is a no-op.
+ */
+const METADATA_IDENTITY_URL =
+  "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity";
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!API_HOST.startsWith("https://")) return {};
+  const now = Date.now();
+  if (cachedToken && cachedToken.expiresAt > now) {
+    return { Authorization: `Bearer ${cachedToken.value}` };
+  }
+  try {
+    const res = await fetch(
+      `${METADATA_IDENTITY_URL}?audience=${encodeURIComponent(API_HOST)}`,
+      { headers: { "Metadata-Flavor": "Google" }, signal: AbortSignal.timeout(3_000) },
+    );
+    if (!res.ok) return {};
+    const token = await res.text();
+    // Tokens live 1 h; refresh 5 min early.
+    cachedToken = { value: token, expiresAt: now + 55 * 60_000 };
+    return { Authorization: `Bearer ${token}` };
+  } catch {
+    // Not on GCP (no metadata server) — assume the API needs no auth.
+    return {};
+  }
+}
+
 export class DesignServiceError extends Error {
   constructor(
     message: string,
@@ -70,7 +101,7 @@ export async function generateDesign(
 ): Promise<DesignArtifacts> {
   const res = await fetch(`${API_HOST}/design/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({
       template_id: templateId,
       template_version: templateVersion,
@@ -89,6 +120,7 @@ export async function repairMesh(
   form.append("file", new Blob([new Uint8Array(data)]), fileName);
   const res = await fetch(`${API_HOST}/design/repair`, {
     method: "POST",
+    headers: await authHeaders(),
     body: form,
     signal: AbortSignal.timeout(300_000),
   });
@@ -98,6 +130,7 @@ export async function repairMesh(
 export async function designServiceHealthy(): Promise<boolean> {
   try {
     const res = await fetch(`${API_HOST}/health`, {
+      headers: await authHeaders(),
       signal: AbortSignal.timeout(3_000),
     });
     return res.ok;
