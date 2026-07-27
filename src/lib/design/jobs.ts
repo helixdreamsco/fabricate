@@ -15,6 +15,9 @@ import { ownerWhere, type DesignIdentity } from "./identity";
 /** Identical request within this window returns the existing job. */
 const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const POLL_INTERVAL_MS = 5000;
+// A downloading/processing row older than this with no in-flight pipeline was
+// stranded by a restart; a live pipeline touches updatedAt far more often.
+const RECOVERY_STALE_MS = 60_000;
 export const FREE_GENERATIONS_PER_DAY = 3;
 
 export function designsDir(): string {
@@ -339,7 +342,22 @@ async function pollOnce(jobId: string): Promise<void> {
   await downloadAndRepair(jobId, task.modelUrls ?? {});
 }
 
+const inFlight = new Set<string>();
+
 async function downloadAndRepair(
+  jobId: string,
+  modelUrls: { glb?: string; obj?: string; stl?: string },
+): Promise<void> {
+  if (inFlight.has(jobId)) return;
+  inFlight.add(jobId);
+  try {
+    await downloadAndRepairInner(jobId, modelUrls);
+  } finally {
+    inFlight.delete(jobId);
+  }
+}
+
+async function downloadAndRepairInner(
   jobId: string,
   modelUrls: { glb?: string; obj?: string; stl?: string },
 ): Promise<void> {
@@ -376,10 +394,41 @@ async function downloadAndRepair(
 
 /** Poll-on-read fallback: revive the loop after a server restart. */
 export async function refreshAiJob(row: DesignJob): Promise<DesignJob> {
-  if (row.kind !== "ai" || row.state !== "generating") return row;
-  if (!pollers.has(row.id)) {
-    startPolling(row.id);
-    await pollOnce(row.id).catch(() => {});
+  if (row.kind !== "ai") return row;
+  if (row.state === "generating") {
+    if (!pollers.has(row.id)) {
+      startPolling(row.id);
+      await pollOnce(row.id).catch(() => {});
+      return (await prisma.designJob.findUnique({ where: { id: row.id } })) ?? row;
+    }
+    return row;
+  }
+  // A restart can also strand a job mid download/repair. The provider task is
+  // still retrievable, so pick the pipeline back up from its result.
+  if (
+    (row.state === "downloading" || row.state === "processing") &&
+    row.providerTaskId &&
+    !inFlight.has(row.id) &&
+    Date.now() - row.updatedAt.getTime() > RECOVERY_STALE_MS
+  ) {
+    try {
+      const task = await getProvider().getTask(
+        row.providerTaskId,
+        (row.taskKind ?? "text") as TaskKind,
+      );
+      if (task.status === "succeeded") {
+        await downloadAndRepair(row.id, task.modelUrls ?? {});
+      } else if (task.status === "pending" || task.status === "in_progress") {
+        await setState(row.id, "generating");
+        startPolling(row.id);
+      } else {
+        await setState(row.id, "failed", {
+          failReason: task.error ?? "Generation failed — please try again.",
+        });
+      }
+    } catch (e) {
+      console.error("design job recovery failed", row.id, e);
+    }
     return (await prisma.designJob.findUnique({ where: { id: row.id } })) ?? row;
   }
   return row;

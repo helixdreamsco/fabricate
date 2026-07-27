@@ -17,6 +17,8 @@ from . import common
 
 MAX_TRIANGLES = 300_000
 PREVIEW_MAX_TRIANGLES = 80_000
+VOXEL_MAX_TRIANGLES = 100_000
+THICKNESS_MAX_TRIANGLES = 80_000
 MIN_BBOX_MM = 20.0
 MAX_BBOX_MM = 250.0
 MIN_THICKNESS_MM = 1.2
@@ -73,8 +75,13 @@ def repair(mesh):
         except Exception:
             repaired = None
         if repaired is None:
-            pitch = float(mesh.extents.max()) / 256.0
-            vox = trimesh.voxel.creation.voxelize(mesh, pitch=pitch)
+            # subdivide-based voxelisation explodes in memory on dense
+            # meshes; decimate first — the grid resolution caps detail anyway
+            src = mesh
+            if len(src.faces) > VOXEL_MAX_TRIANGLES:
+                src = src.simplify_quadric_decimation(face_count=VOXEL_MAX_TRIANGLES)
+            pitch = float(src.extents.max()) / 256.0
+            vox = trimesh.voxel.creation.voxelize(src, pitch=pitch)
             remeshed = vox.fill().marching_cubes
             remeshed.apply_transform(vox.transform)
             repaired = remeshed
@@ -130,14 +137,19 @@ def thickness_check(mesh):
 
     Returns (thin_count, fragile). Deterministic (fixed seed).
     """
-    points, face_idx = trimesh.sample.sample_surface(mesh, THICKNESS_SAMPLES, seed=0)
-    normals = mesh.face_normals[face_idx]
+    # Without embree, ray queries against a dense mesh take minutes and can
+    # exhaust memory; a decimated probe keeps the sampled heuristic honest.
+    probe = mesh
+    if len(probe.faces) > THICKNESS_MAX_TRIANGLES:
+        probe = probe.simplify_quadric_decimation(face_count=THICKNESS_MAX_TRIANGLES)
+    points, face_idx = trimesh.sample.sample_surface(probe, THICKNESS_SAMPLES, seed=0)
+    normals = probe.face_normals[face_idx]
     try:
         thickness = trimesh.proximity.thickness(
-            mesh, points, normals=normals, method="ray"
+            probe, points, normals=normals, method="ray"
         )
     except Exception:
-        thickness = trimesh.proximity.thickness(mesh, points, method="max_sphere") * 2.0
+        thickness = trimesh.proximity.thickness(probe, points, method="max_sphere") * 2.0
     thickness = np.asarray(thickness)
     valid = np.isfinite(thickness) & (thickness > 1e-9)
     thin = int(np.sum(valid & (thickness < MIN_THICKNESS_MM)))
