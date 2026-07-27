@@ -18,9 +18,14 @@ from . import common
 MAX_TRIANGLES = 300_000
 PREVIEW_MAX_TRIANGLES = 80_000
 VOXEL_MAX_TRIANGLES = 100_000
+# 128^3 keeps voxelize under ~1 GB and features ~0.8 mm at max bbox — finer
+# than FDM can print; 256^3 hit multi-GB peaks on fat shapes and got the
+# service OOM-killed.
+VOXEL_RESOLUTION = 128
 THICKNESS_MAX_TRIANGLES = 80_000
 MIN_BBOX_MM = 20.0
 MAX_BBOX_MM = 250.0
+DEFAULT_AI_SIZE_MM = 90.0
 MIN_THICKNESS_MM = 1.2
 THICKNESS_SAMPLES = 2000
 FRAGILE_FRACTION = 0.02          # >2 % thin samples -> too_fragile
@@ -75,16 +80,7 @@ def repair(mesh):
         except Exception:
             repaired = None
         if repaired is None:
-            # subdivide-based voxelisation explodes in memory on dense
-            # meshes; decimate first — the grid resolution caps detail anyway
-            src = mesh
-            if len(src.faces) > VOXEL_MAX_TRIANGLES:
-                src = src.simplify_quadric_decimation(face_count=VOXEL_MAX_TRIANGLES)
-            pitch = float(src.extents.max()) / 256.0
-            vox = trimesh.voxel.creation.voxelize(src, pitch=pitch)
-            remeshed = vox.fill().marching_cubes
-            remeshed.apply_transform(vox.transform)
-            repaired = remeshed
+            repaired = _voxel_remesh(mesh)
         mesh = repaired
         trimesh.repair.fix_normals(mesh)
         if mesh.is_watertight and mesh.volume < 0:
@@ -94,18 +90,81 @@ def repair(mesh):
         raise PipelineError("repair_failed")
 
     if len(mesh.faces) > MAX_TRIANGLES:
-        mesh = mesh.simplify_quadric_decimation(face_count=MAX_TRIANGLES)
-        mesh.merge_vertices()
-        if not mesh.is_watertight:
-            # decimation can nick the surface; a manifold3d self-union heals it
-            try:
-                man = common.to_manifold(mesh)
-                if man.status().name == "NoError" and not man.is_empty():
-                    mesh = common.from_manifold(man + man)
-            except Exception:
-                pass
-        if not mesh.is_watertight:
+        reduced = _bounded_decimate(mesh)
+        if reduced is None:
+            # Last resort: voxel remesh bounds size by construction
+            # (<= ~VOXEL_RESOLUTION^2 surface cells) and is usually watertight.
+            reduced = _voxel_remesh(mesh)
+            trimesh.repair.fix_normals(reduced)
+        if not reduced.is_watertight or len(reduced.faces) > MAX_TRIANGLES:
             raise PipelineError("repair_failed")
+        mesh = reduced
+    return mesh
+
+
+def _voxel_remesh(mesh):
+    """Rebuild as the surface of the filled voxel grid (always a solid).
+
+    Subdivide-based voxelisation explodes in memory on dense meshes, so
+    decimate first — the grid resolution caps detail anyway.
+    """
+    src = mesh
+    if len(src.faces) > VOXEL_MAX_TRIANGLES:
+        src = src.simplify_quadric_decimation(face_count=VOXEL_MAX_TRIANGLES)
+    pitch = float(src.extents.max()) / VOXEL_RESOLUTION
+    vox = trimesh.voxel.creation.voxelize(src, pitch=pitch)
+    # pad so the isosurface closes at the grid edge; marching cubes can
+    # still emit corner-touching non-manifold spots, healed below by a
+    # manifold3d self-union
+    matrix = np.pad(np.asarray(vox.fill().matrix, dtype=bool), 1)
+    remeshed = trimesh.voxel.ops.matrix_to_marching_cubes(matrix, pitch=1.0)
+    remeshed.apply_translation((-1.0, -1.0, -1.0))
+    remeshed.apply_transform(vox.transform)
+    remeshed.merge_vertices()
+    if not remeshed.is_watertight:
+        try:
+            man = common.to_manifold(remeshed)
+            if man.status().name == "NoError" and not man.is_empty():
+                remeshed = common.from_manifold(man + man)
+        except Exception:
+            pass
+    return remeshed
+
+
+def _bounded_decimate(mesh):
+    """Reduce to <= MAX_TRIANGLES without losing watertightness, or None.
+
+    Quadric decimation can nick the surface and the self-union heal can
+    re-tessellate right back above the cap (which downstream thickness rays,
+    slicing and export size all rely on). manifold3d's simplify preserves
+    manifoldness by construction, so try it first with a growing tolerance.
+    """
+    try:
+        man = common.to_manifold(mesh)
+        if man.status().name == "NoError" and not man.is_empty():
+            eps = float(mesh.extents.max()) * 1e-4
+            for _ in range(8):
+                simplified = man.simplify(eps)
+                if not simplified.is_empty() and simplified.num_tri() <= MAX_TRIANGLES:
+                    candidate = common.from_manifold(simplified)
+                    if candidate.is_watertight:
+                        return candidate
+                    break
+                eps *= 4.0
+    except Exception:
+        pass
+    # Fallback: quadric decimation + self-union heal.
+    mesh = mesh.simplify_quadric_decimation(face_count=MAX_TRIANGLES)
+    mesh.merge_vertices()
+    if not mesh.is_watertight:
+        try:
+            man = common.to_manifold(mesh)
+            if man.status().name == "NoError" and not man.is_empty():
+                mesh = common.from_manifold(man + man)
+        except Exception:
+            pass
+    if not mesh.is_watertight or len(mesh.faces) > MAX_TRIANGLES:
+        return None
     return mesh
 
 
@@ -114,13 +173,12 @@ def enforce_bbox(mesh, kind="preset", target_size_mm=None):
     if kind == "ai":
         if target_size_mm is not None and mesh.extents.max() > 0:
             mesh.apply_scale(float(target_size_mm) / float(mesh.extents.max()))
-        else:
-            # clamp into the printable range without changing valid models
-            largest = float(mesh.extents.max())
-            if largest > MAX_BBOX_MM:
-                mesh.apply_scale(MAX_BBOX_MM / largest)
-            elif largest < MIN_BBOX_MM and largest > 0:
-                mesh.apply_scale(MIN_BBOX_MM / largest)
+        elif mesh.extents.max() > 0:
+            # Generator units are arbitrary (Meshy outputs ~2-unit meshes),
+            # so scale to a printable default figurine size. Clamping to the
+            # 20 mm minimum made walls thinner than the nozzle — unsliceable
+            # first layers and constant too_fragile badges.
+            mesh.apply_scale(DEFAULT_AI_SIZE_MM / float(mesh.extents.max()))
     largest = float(mesh.extents.max())
     if largest < MIN_BBOX_MM:
         raise PipelineError("too_small")

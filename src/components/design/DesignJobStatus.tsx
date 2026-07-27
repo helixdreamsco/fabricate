@@ -196,16 +196,18 @@ export function DesignJobStatus({
               </>
             ) : null}
           </div>
-          {job.badge !== "too_fragile" ? (
-            <Button
-              size="lg"
-              withArrow
-              onClick={continueToQuote}
-              disabled={handingOff}
-            >
-              {handingOff ? "Preparing…" : "Continue to quote"}
-            </Button>
-          ) : null}
+          <Button
+            size="lg"
+            withArrow
+            onClick={continueToQuote}
+            disabled={handingOff}
+          >
+            {handingOff
+              ? "Preparing…"
+              : job.badge === "too_fragile"
+                ? "Print — scale up first"
+                : "Print with a maker"}
+          </Button>
         </div>
         {handoffError ? (
           <MonoLabel size="xs" muted={false} className="mt-2 block text-[#ef4444]">

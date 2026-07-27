@@ -18,6 +18,7 @@ import { localProvider } from "./localProvider";
 
 const TEXT_BASE = "https://api.meshy.ai/openapi/v2/text-to-3d";
 const IMAGE_BASE = "https://api.meshy.ai/openapi/v1/image-to-3d";
+const T2I_BASE = "https://api.meshy.ai/openapi/v1/text-to-image";
 
 const MAX_RETRIES = 3;
 
@@ -173,6 +174,51 @@ export const meshyProvider: GenerationProvider = {
     return mapTask(data as Parameters<typeof mapTask>[0]);
   },
 };
+
+/**
+ * Concept images (Meshy text-to-image, nano-banana): the refine flow shows
+ * the user a 2D preview of their idea before spending a 3D generation on it.
+ * Meshy-specific — the demo provider has no image stage, so callers must
+ * check conceptImagesAvailable() and fall back to direct text-to-3D.
+ */
+export function conceptImagesAvailable(): boolean {
+  return meshyProvider.available();
+}
+
+export async function createConceptImage(prompt: string): Promise<string> {
+  const data = (await meshyFetch(T2I_BASE, {
+    method: "POST",
+    body: JSON.stringify({
+      ai_model: "nano-banana",
+      prompt: prompt.slice(0, 600),
+      aspect_ratio: "1:1",
+    }),
+  })) as { result: string };
+  return data.result;
+}
+
+export type ConceptImageState = {
+  status: "pending" | "in_progress" | "succeeded" | "failed" | "canceled";
+  progress: number;
+  imageUrls: string[];
+  error?: string;
+};
+
+export async function getConceptImage(taskId: string): Promise<ConceptImageState> {
+  const data = (await meshyFetch(`${T2I_BASE}/${taskId}`)) as {
+    status?: string;
+    progress?: number;
+    image_urls?: string[];
+    task_error?: { message?: string };
+  };
+  const status = (data.status?.toLowerCase() ?? "pending") as ConceptImageState["status"];
+  return {
+    status,
+    progress: status === "succeeded" ? 100 : (data.progress ?? 0),
+    imageUrls: data.image_urls ?? [],
+    error: data.task_error?.message?.slice(0, 200),
+  };
+}
 
 export function getProvider(): GenerationProvider {
   // No Meshy key → built-in demo generator so the AI flow still works

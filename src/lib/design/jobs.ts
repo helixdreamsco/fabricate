@@ -18,7 +18,9 @@ const POLL_INTERVAL_MS = 5000;
 // A downloading/processing row older than this with no in-flight pipeline was
 // stranded by a restart; a live pipeline touches updatedAt far more often.
 const RECOVERY_STALE_MS = 60_000;
-export const FREE_GENERATIONS_PER_DAY = 3;
+export const FREE_GENERATIONS_PER_DAY = Number(
+  process.env.DESIGN_FREE_GENERATIONS_PER_DAY ?? 3,
+);
 
 export function designsDir(): string {
   return path.join(dataDir(), "designs");
@@ -194,17 +196,20 @@ export async function createAiJob(opts: {
   identity: DesignIdentity & { userId: string };
   prompt?: string;
   imageDataUri?: string;
+  /** Approved concept image (refine flow) — generation runs image-to-3D from it. */
+  conceptImageUrl?: string;
   seed: number;
 }): Promise<
   | { jobId: string; reused: boolean; blocked: boolean }
   | { error: "quota_exceeded" }
 > {
-  const taskKind: TaskKind = opts.imageDataUri ? "image" : "text";
+  const imageRef = opts.imageDataUri ?? opts.conceptImageUrl;
+  const taskKind: TaskKind = imageRef ? "image" : "text";
   const shaped = taskKind === "text" ? shapePrompt(opts.prompt!) : "";
   const dedupeBasis =
     taskKind === "text"
       ? shaped
-      : createHash("sha256").update(opts.imageDataUri!).digest("hex");
+      : createHash("sha256").update(imageRef!).digest("hex");
   const hash = aiDedupeHash(opts.identity.userId, dedupeBasis, opts.seed);
 
   // Never call Meshy for a duplicate request within 24 h.
@@ -236,8 +241,11 @@ export async function createAiJob(opts: {
     },
   });
 
-  const moderation =
-    taskKind === "text"
+  // Concept images were generated from an already-moderated prompt; the
+  // prompt is re-checked here (fail closed), the image itself came from us.
+  const moderation = opts.conceptImageUrl
+    ? await moderatePrompt(opts.identity, opts.prompt!)
+    : taskKind === "text"
       ? await moderatePrompt(opts.identity, opts.prompt!)
       : await moderateImage(opts.identity, opts.imageDataUri!);
   if (!moderation.allowed) {
@@ -254,7 +262,7 @@ export async function createAiJob(opts: {
   }
 
   // Persist image uploads next to the job's future artifacts (audit).
-  if (taskKind === "image") {
+  if (taskKind === "image" && opts.imageDataUri) {
     const ext = opts.imageDataUri!.startsWith("data:image/png") ? "png" : "jpg";
     const dir = path.join(designsDir(), job.id);
     await fs.promises.mkdir(dir, { recursive: true });
@@ -273,7 +281,7 @@ export async function createAiJob(opts: {
     const taskId =
       taskKind === "text"
         ? await provider.createTextTask(shaped)
-        : await provider.createImageTask(opts.imageDataUri!);
+        : await provider.createImageTask(imageRef!);
     await setState(job.id, "generating", { providerTaskId: taskId, progress: 0 });
     startPolling(job.id);
   } catch (e) {

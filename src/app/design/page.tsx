@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { auth } from "@/auth";
 import { allTemplates } from "@/lib/design/registry";
-import { getProvider } from "@/lib/design/meshy";
+import { getProvider, conceptImagesAvailable } from "@/lib/design/meshy";
 import { classifierAvailable } from "@/lib/design/moderation";
 import { generationsRemaining } from "@/lib/design/jobs";
 import { AiPanel } from "@/components/design/AiPanel";
@@ -75,6 +75,7 @@ export default async function DesignPage() {
         </MonoLabel>
         <AiPanel
           available={aiAvailable}
+          conceptImages={conceptImagesAvailable() && classifierAvailable()}
           signedIn={signedIn}
           initialRemaining={remaining}
         />

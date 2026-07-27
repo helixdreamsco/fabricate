@@ -48,12 +48,28 @@ Next.js (this app)                       FastAPI (api/, port 8000)
   pointless for one-colour FDM (`MESHY_ENABLE_REFINE=1` re-enables it via
   `POST /api/design/jobs/:id/refine`). Credits per job are recorded on
   `DesignJob.credits`.
+- **Refine flow** (Meshy live only; photo uploads and the demo generator skip
+  it): text prompts walk clarify → concept → approve before any 3D generation
+  is spent. `POST /api/design/ai/clarify` moderates the prompt then asks
+  Claude (`src/lib/design/refine.ts`, fail-open — errors just mean "no
+  questions") for up to 3 multiple-choice clarifying questions on ambiguous
+  prompts; answers are folded into the prompt client-side. `POST
+  /api/design/ai/concept` re-moderates and creates a Meshy text-to-image task
+  (nano-banana, 3 credits); the UI polls `GET /api/design/ai/concept/:id` and
+  shows the image for approval. "Make it 3D" posts the enriched prompt +
+  `conceptImageUrl` (restricted to `assets.meshy.ai`) to `/api/design/ai`,
+  which runs image-to-3D from the approved image. Only the final 3D
+  generation consumes daily quota.
+- **AI model sizing**: generator units are arbitrary, so AI meshes are scaled
+  to a 90 mm default figurine size (`DEFAULT_AI_SIZE_MM`) unless a target size
+  is given. Clamping to the 20 mm minimum made walls thinner than the nozzle —
+  unsliceable first layers and constant too-fragile badges.
 - **Moderation, fail closed**: blocklist (`src/lib/design/blocklist.ts` — the
   one editable file; normalisation catches leetspeak/spacing/diacritics) then
   a Claude classifier (text or vision for image uploads). Classifier error or
   missing `ANTHROPIC_API_KEY` ⇒ block; hence the AI tab requires BOTH keys.
   Everything is logged to `DesignModerationLog`.
-- **Quota / abuse**: 3 successful generations/user/day (blocked prompts never
+- **Quota / abuse**: `DESIGN_FREE_GENERATIONS_PER_DAY` (default 3) successful generations/user/day (blocked prompts never
   count, provider failures drop out of the count), 24 h dedupe by
   user+prompt+seed (Meshy is never called for a duplicate), 10 req/min rate
   limit via `src/lib/rate-limit.ts`. AI requires sign-in; presets work for
@@ -87,6 +103,7 @@ fixture, and endpoint error mapping).
 | `MESHY_API_KEY` | built-in demo generator serves the AI tab (labelled; placeholder shapes) |
 | `ANTHROPIC_API_KEY` | AI tab shows "coming soon" — moderation fails closed, AI disabled |
 | `MESHY_ENABLE_REFINE` | refine endpoint returns 409 (default; texture-only stage) |
+| `DESIGN_FREE_GENERATIONS_PER_DAY` | daily AI quota defaults to 3 |
 | `DESIGN_REPO_ROOT` | FastAPI resolves templates/fonts/icons from repo root |
 
 ## Deployment note
