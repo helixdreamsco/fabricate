@@ -1,0 +1,74 @@
+{
+  "id": "bangle",
+  "version": 1,
+  "name": "Bangle",
+  "category": "wearable",
+  "description": "A chunky wrist bangle with your text wrapped around the outside.",
+  "thumbnail": "/design-thumbs/bangle.svg",
+  "params": {
+    "text": {
+      "kind": "text",
+      "label": "Text",
+      "minLength": 0,
+      "maxLength": 16,
+      "default": "ALEX",
+      "pattern": "^[A-Za-z0-9 .,!?&'-]*$"
+    },
+    "font": {
+      "kind": "enum",
+      "label": "Font",
+      "options": [
+        "sans-bold",
+        "serif-bold",
+        "mono-bold"
+      ],
+      "default": "sans-bold"
+    },
+    "mode": {
+      "kind": "enum",
+      "label": "Style",
+      "options": [
+        "emboss",
+        "deboss"
+      ],
+      "default": "emboss"
+    },
+    "innerDiameterMm": {
+      "kind": "number",
+      "label": "Inner diameter",
+      "min": 50,
+      "max": 80,
+      "step": 2,
+      "default": 64,
+      "unit": "mm"
+    },
+    "widthMm": {
+      "kind": "number",
+      "label": "Band width",
+      "min": 8,
+      "max": 20,
+      "step": 2,
+      "default": 12,
+      "unit": "mm"
+    },
+    "wallMm": {
+      "kind": "number",
+      "label": "Wall",
+      "min": 3,
+      "max": 6,
+      "step": 0.5,
+      "default": 4,
+      "unit": "mm"
+    }
+  },
+  "constraints": {
+    "minTextHeightMm": 4,
+    "minStrokeMm": 1.2,
+    "reliefDepthMm": 1.2,
+    "maxBBoxMm": [
+      95,
+      95,
+      25
+    ]
+  }
+}

@@ -8,6 +8,7 @@ import {
   Menu,
   X,
   Upload,
+  Shapes,
   ListChecks,
   Users,
   Compass,
@@ -253,6 +254,7 @@ function SignedInGroups({
   pathname: string;
 }) {
   const creator: NavItem[] = [
+    { href: "/design", label: "Design your own", icon: Shapes },
     { href: "/", label: "Upload a part", icon: Upload },
     { href: "/jobs", label: "My jobs", icon: ListChecks },
     { href: "/track", label: "Track an order", icon: MapPin },

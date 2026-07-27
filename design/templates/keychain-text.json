@@ -1,0 +1,65 @@
+{
+  "id": "keychain-text",
+  "version": 1,
+  "name": "Text Keychain",
+  "category": "keychain",
+  "description": "Your name or word as a chunky keychain, hanging loop included.",
+  "thumbnail": "/design-thumbs/keychain-text.svg",
+  "params": {
+    "text": {
+      "kind": "text",
+      "label": "Text",
+      "minLength": 1,
+      "maxLength": 12,
+      "default": "ALEX",
+      "pattern": "^[A-Za-z0-9 .,!?&'-]+$"
+    },
+    "font": {
+      "kind": "enum",
+      "label": "Font",
+      "options": [
+        "sans-bold",
+        "serif-bold",
+        "mono-bold"
+      ],
+      "default": "sans-bold"
+    },
+    "mode": {
+      "kind": "enum",
+      "label": "Style",
+      "options": [
+        "emboss",
+        "deboss"
+      ],
+      "default": "emboss"
+    },
+    "lengthMm": {
+      "kind": "number",
+      "label": "Length",
+      "min": 40,
+      "max": 80,
+      "step": 5,
+      "default": 60,
+      "unit": "mm"
+    },
+    "thicknessMm": {
+      "kind": "number",
+      "label": "Thickness",
+      "min": 3,
+      "max": 6,
+      "step": 0.5,
+      "default": 4,
+      "unit": "mm"
+    }
+  },
+  "constraints": {
+    "minTextHeightMm": 6,
+    "minStrokeMm": 1.2,
+    "reliefDepthMm": 1.5,
+    "maxBBoxMm": [
+      90,
+      45,
+      10
+    ]
+  }
+}

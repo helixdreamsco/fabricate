@@ -1,9 +1,18 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 python-multipart==0.0.20
-trimesh==4.5.3
-numpy==2.2.2
+trimesh==4.12.2
+numpy==2.4.6
 # Trimesh's 3MF importer needs these — without them .3mf upload fails with
 # "No module named 'networkx'".
 networkx==3.4.2
 lxml==5.3.0
+# Design generation pipeline (app/design): text/icon -> mesh, booleans,
+# repair/decimation, thickness sampling.
+manifold3d==3.5.2
+shapely==2.1.2
+matplotlib==3.10.0
+scipy==1.15.0
+scikit-image==0.26.0
+fast-simplification==0.1.13
+rtree==1.4.1

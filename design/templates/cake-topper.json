@@ -1,0 +1,47 @@
+{
+  "id": "cake-topper",
+  "version": 1,
+  "name": "Cake Topper",
+  "category": "party",
+  "description": "Standing text on a bar with two cake spikes.",
+  "thumbnail": "/design-thumbs/cake-topper.svg",
+  "params": {
+    "text": {
+      "kind": "text",
+      "label": "Text",
+      "minLength": 1,
+      "maxLength": 15,
+      "default": "HAPPY 30TH",
+      "pattern": "^[A-Za-z0-9 .,!?&'-]+$"
+    },
+    "font": {
+      "kind": "enum",
+      "label": "Font",
+      "options": [
+        "sans-bold",
+        "serif-bold",
+        "mono-bold"
+      ],
+      "default": "sans-bold"
+    },
+    "widthMm": {
+      "kind": "number",
+      "label": "Width",
+      "min": 80,
+      "max": 180,
+      "step": 10,
+      "default": 120,
+      "unit": "mm"
+    }
+  },
+  "constraints": {
+    "minTextHeightMm": 12,
+    "minStrokeMm": 1.6,
+    "reliefDepthMm": 3,
+    "maxBBoxMm": [
+      180,
+      100,
+      6
+    ]
+  }
+}

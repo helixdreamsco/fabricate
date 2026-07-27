@@ -63,6 +63,8 @@ model User {
   referredByCodeId      String?
   referredByCode        AffiliateCode?  @relation("AffiliateCodeRedemption", fields: [referredByCodeId], references: [id])
   affiliateBonusClaimed Boolean         @default(false)
+
+  designJobs DesignJob[] @relation("DesignJobOwner")
 }
 
 model Account {
@@ -1017,4 +1019,63 @@ model AffiliatePayout {
   updatedAt DateTime  @updatedAt
 
   @@index([codeId, status])
+}
+
+// ─── Design customiser (parametric templates + AI text-to-creation) ──────
+// A DesignJob is a compute job (generate → repair → validate → slice), not
+// a marketplace Job. When ready, its STL hands off to the normal upload →
+// configure → quote flow. Guests may run preset jobs (anonId cookie);
+// AI jobs require a signed-in user (quota + moderation audit).
+
+model DesignJob {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation("DesignJobOwner", fields: [userId], references: [id], onDelete: SetNull)
+  /// Guest ownership: signed anonymous cookie id when userId is null.
+  anonId String?
+
+  kind            String // "preset" | "ai"
+  taskKind        String? // ai: "text" | "image"
+  templateId      String?
+  templateVersion Int?
+  paramsJson      String? @db.Text // canonicalised parameter JSON (presets)
+  paramsHash      String // dedupe / cache key
+  prompt          String? @db.Text
+  shapedPrompt    String? @db.Text
+  seed            Int     @default(0)
+  provider        String? // "meshy"
+  providerTaskId  String?
+  stage           String? // "preview" | "refined"
+  credits         Int     @default(0)
+  progress        Int     @default(0)
+  imageKey        String?
+
+  state        String  @default("queued") // queued|moderating|blocked|generating|downloading|processing|ready|failed
+  stateHistory Json    @default("[]")
+  failReason   String?
+  badge        String? // ready | needs_supports | too_fragile
+  stlKey       String?
+  glbKey       String?
+  metricsJson  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([anonId, createdAt])
+  @@index([paramsHash, createdAt])
+}
+
+model DesignModerationLog {
+  id      String  @id @default(cuid())
+  userId  String?
+  anonId  String?
+  prompt  String  @db.Text
+  stage   String // "blocklist" | "classifier"
+  verdict String // "allow" | "block"
+  reason  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

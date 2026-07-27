@@ -13,6 +13,7 @@ from fastapi import FastAPI, Form, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
 from .analyze import analyze_bytes, as_dict as analysis_dict
+from .design.routes import router as design_router, template_count
 from .slicer import find_slicer, slice_mesh, slicer_version
 from .pricing import (
     MATERIAL_DENSITY,
@@ -33,6 +34,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(design_router)
+
 
 @app.get("/health")
 def health():
@@ -46,6 +49,10 @@ def health():
             "path": bin_path,
             "version": slicer_version(bin_path) if bin_path else None,
             "engine": "PrusaSlicer",
+        },
+        "design": {
+            "templates": template_count(),
+            "ok": True,
         },
     }
 

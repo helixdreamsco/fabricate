@@ -46,6 +46,7 @@ export async function TopNav() {
         ) : (
           <nav className="hidden md:flex items-center gap-1 p-1 rounded-full border border-black/10 bg-white">
             <NavPill href="/#top" label="Upload" />
+            <NavPill href="/design" label="Design" />
             <NavPill href="/#how-it-works" label="How it works" />
             <NavPill href="/makers" label="For makers" />
             <NavPill href="/#network" label="Network" />
@@ -55,6 +56,12 @@ export async function TopNav() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
+              <Link
+                href="/design"
+                className="hidden md:inline-flex font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 hover:text-black transition-colors"
+              >
+                Design
+              </Link>
               <Link
                 href="/"
                 className="hidden md:inline-flex font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 hover:text-black transition-colors"
