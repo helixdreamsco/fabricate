@@ -84,8 +84,8 @@ fixture, and endpoint error mapping).
 
 | Var | Effect when absent |
 |---|---|
-| `MESHY_API_KEY` | AI tab shows "coming soon"; `/api/design/ai` returns 503 |
-| `ANTHROPIC_API_KEY` | same — moderation fails closed, so AI is disabled |
+| `MESHY_API_KEY` | built-in demo generator serves the AI tab (labelled; placeholder shapes) |
+| `ANTHROPIC_API_KEY` | AI tab shows "coming soon" — moderation fails closed, AI disabled |
 | `MESHY_ENABLE_REFINE` | refine endpoint returns 409 (default; texture-only stage) |
 | `DESIGN_REPO_ROOT` | FastAPI resolves templates/fonts/icons from repo root |
 
