@@ -19,7 +19,6 @@ import {
 } from "@/lib/money";
 import type { MakerProfileSummary } from "@/lib/maker-profile";
 import { expandMakerLocations } from "@/lib/maker-profile";
-import { track } from "@/lib/analytics";
 
 /**
  * Post-job flow.
@@ -150,12 +149,6 @@ export function CheckoutForm({
     }
     setPending(true);
     setError(null);
-    track("checkout_submitted", {
-      material: draft.material ?? "unknown",
-      quality: String(draft.quality ?? ""),
-      quantity: draft.quantity ?? 1,
-      price_gbp: Number(effectivePrice.toFixed(2)),
-    });
     try {
       const fd = new FormData();
       fd.append("file", draft.file);
@@ -210,10 +203,6 @@ export function CheckoutForm({
         throw new Error(j.error ?? `post failed (${jobRes.status})`);
       }
       const { job } = await jobRes.json();
-      track("job_posted", {
-        job_id: job.id,
-        price_gbp: Number(effectivePrice.toFixed(2)),
-      });
       router.push(`/jobs/${job.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");

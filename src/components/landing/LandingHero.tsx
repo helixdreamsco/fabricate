@@ -11,7 +11,6 @@ import { MATERIALS } from "@/lib/catalog";
 import { postAnalyze } from "@/lib/api";
 import { describeUploadError, preflightUploadError } from "@/lib/upload-error";
 import { SlicerChip } from "@/components/shell/SlicerChip";
-import { track } from "@/lib/analytics";
 
 export function LandingHero() {
   const router = useRouter();
@@ -39,10 +38,6 @@ export function LandingHero() {
       ]);
       const partColors = defaultPartColors(analysis, MATERIALS[0].colors[0].hex);
       set({ file: f, analysis, serverAnalysis, partColors });
-      track("upload_started", {
-        format: f.name.split(".").pop()?.toLowerCase() ?? "unknown",
-        size_kb: Math.round(f.size / 1024),
-      });
       // Stash the file in IndexedDB so /configure can rehydrate after the
       // sign-in round-trip wipes in-memory React state.
       await savePendingUpload(f).catch((err) =>

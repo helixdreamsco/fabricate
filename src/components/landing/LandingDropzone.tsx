@@ -9,7 +9,6 @@ import { savePendingUpload } from "@/lib/order-storage";
 import { MATERIALS } from "@/lib/catalog";
 import { postAnalyze } from "@/lib/api";
 import { describeUploadError, preflightUploadError } from "@/lib/upload-error";
-import { track } from "@/lib/analytics";
 
 /**
  * Compact upload dropzone for SEO landing pages. Same file-handling logic as
@@ -40,11 +39,6 @@ export function LandingDropzone({ source }: { source: string }) {
       ]);
       const partColors = defaultPartColors(analysis, MATERIALS[0].colors[0].hex);
       set({ file: f, analysis, serverAnalysis, partColors });
-      track("upload_started", {
-        source,
-        format: f.name.split(".").pop()?.toLowerCase() ?? "unknown",
-        size_kb: Math.round(f.size / 1024),
-      });
       await savePendingUpload(f).catch((err) =>
         console.warn("savePendingUpload failed:", err),
       );

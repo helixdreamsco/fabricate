@@ -5,8 +5,6 @@ import { TopNav } from "@/components/shell/TopNav";
 import { PromoBanner } from "@/components/shell/PromoBanner";
 import { OrderProvider } from "@/lib/order-store";
 import { SessionProviderClient } from "@/components/auth/SessionProviderClient";
-import { PlausibleScript } from "@/components/analytics/PlausibleScript";
-import { GoogleAdsScript } from "@/components/analytics/GoogleAdsScript";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -95,10 +93,6 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceMono.variable} h-full antialiased`}
     >
-      <head>
-        <PlausibleScript />
-        <GoogleAdsScript />
-      </head>
       <body className="min-h-full flex flex-col">
         <SessionProviderClient>
           <OrderProvider>
