@@ -153,3 +153,20 @@ async def repair(file: UploadFile = File(...)):
         payload["metrics"]["triangles"], payload["metrics"]["sliced"],
     )
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Demo generator (no Meshy key): deterministic prompt-seeded placeholder
+# model, served as a GLB. The Node side treats it like any provider download.
+# ---------------------------------------------------------------------------
+from fastapi import Query
+from fastapi.responses import Response
+
+from . import mock_generator
+
+
+@router.get("/mock-model")
+def mock_model(prompt: str = Query(..., max_length=700), seed: int = Query(0, ge=0)):
+    mesh = mock_generator.build_mock_model(prompt, seed)
+    data = trimesh.exchange.gltf.export_glb(mesh)
+    return Response(content=data, media_type="model/gltf-binary")

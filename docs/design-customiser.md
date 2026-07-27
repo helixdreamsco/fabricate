@@ -33,6 +33,13 @@ Next.js (this app)                       FastAPI (api/, port 8000)
   JSON is authoritative — the client never uploads a mesh. Canonical params
   are persisted on the job (`paramsJson`) so any design is reproducible;
   identical params reuse cached artifacts and skip regeneration.
+- **No Meshy key? Demo generator.** When `MESHY_API_KEY` is absent the
+  provider falls back to a built-in demo generator (`local-demo` on the job,
+  labelled in the UI): deterministic prompt-seeded placeholder models from
+  `GET /design/mock-model` on the FastAPI service, run through the full
+  moderation → repair → slice → quote pipeline with simulated progress.
+  Costs nothing, exercises everything; swaps itself out the moment a Meshy
+  key is configured.
 - **AI flow**: job `moderating → blocked | generating(progress %) →
   downloading → processing → ready | failed`. Meshy is polled **server-side
   every 5 s** (its webhooks have no signature mechanism → treated as

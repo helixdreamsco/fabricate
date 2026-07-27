@@ -1,4 +1,5 @@
 import type { GenerationProvider, TaskKind, TaskState } from "./provider";
+import { localProvider } from "./localProvider";
 
 /**
  * Meshy provider. API shapes verified against https://docs.meshy.ai
@@ -174,7 +175,9 @@ export const meshyProvider: GenerationProvider = {
 };
 
 export function getProvider(): GenerationProvider {
-  return meshyProvider;
+  // No Meshy key → built-in demo generator so the AI flow still works
+  // end-to-end (clearly labelled in the UI; provider recorded on the job).
+  return meshyProvider.available() ? meshyProvider : localProvider;
 }
 
 export function refineEnabled(): boolean {

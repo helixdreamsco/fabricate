@@ -191,11 +191,36 @@ export function AiPanel({
       ) : null}
 
       {jobId && (busy || job?.state === "blocked" || job?.state === "failed") ? (
-        <DesignJobStatus job={job} error={error} fileName="ai-design.stl" />
+        <>
+          <DesignJobStatus job={job} error={error} fileName="ai-design.stl" />
+          {job?.state === "failed" ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={regenerate}>
+                ↻ Try again
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setJobId(null);
+                  setPrompt("");
+                  setImage(null);
+                }}
+              >
+                Discard
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {jobId && job?.state === "ready" ? (
         <>
+          {job.provider === "local-demo" ? (
+            <MonoLabel size="xs" muted={false} className="text-[#b45309]">
+              Demo generator — placeholder shape, full print pipeline. Connect
+              Meshy for real AI models.
+            </MonoLabel>
+          ) : null}
           <div className="h-[380px] overflow-hidden rounded-xl border border-black/[0.08]">
             <DesignViewer glbUrl={job.glbUrl} overlayNote="Print-checked model" />
           </div>

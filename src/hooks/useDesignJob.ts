@@ -4,6 +4,7 @@ import * as React from "react";
 export interface DesignJobView {
   id: string;
   kind: "preset" | "ai";
+  provider: string | null;
   templateId: string | null;
   templateVersion: number | null;
   params: Record<string, string | number> | null;

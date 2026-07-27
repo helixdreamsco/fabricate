@@ -444,6 +444,7 @@ export function publicJobView(row: DesignJob) {
   return {
     id: row.id,
     kind: row.kind,
+    provider: row.provider,
     templateId: row.templateId,
     templateVersion: row.templateVersion,
     params: row.paramsJson ? (JSON.parse(row.paramsJson) as { p?: object }).p ?? null : null,
