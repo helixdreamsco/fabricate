@@ -1,0 +1,33 @@
+# Build the Fabricate FastAPI image on Cloud Build.
+#
+#   gcloud builds submit --config api/cloudbuild.yaml \
+#     --substitutions=_TAG=$(git rev-parse --short HEAD) .
+#
+# Context is the REPOSITORY ROOT — the image bakes in design/templates,
+# public/fonts and public/design-icons, which live outside api/.
+#
+# Building here rather than locally is not just convenience: zxing-cpp (QR
+# decode validation) publishes manylinux wheels for x86_64 only, so `docker
+# build` on an arm64 dev machine tries to compile it from source and fails.
+# Cloud Build runs x86_64, which is also what Cloud Run runs.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file=api/Dockerfile
+      - --tag=${_IMAGE}:${_TAG}
+      - --tag=${_IMAGE}:latest
+      - .
+
+images:
+  - ${_IMAGE}:${_TAG}
+  - ${_IMAGE}:latest
+
+substitutions:
+  _IMAGE: europe-west1-docker.pkg.dev/helixdreamsco-cd2a2/fabricate/fabricate-api
+  _TAG: latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+timeout: 1800s
