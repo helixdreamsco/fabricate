@@ -4,7 +4,7 @@
   "name": "Text Keychain",
   "category": "keychain",
   "description": "Your name or word as a chunky keychain, hanging loop included.",
-  "thumbnail": "/design-thumbs/keychain-text.svg",
+  "thumbnail": "/design-thumbs/keychain-text.png",
   "params": {
     "text": {
       "kind": "text",

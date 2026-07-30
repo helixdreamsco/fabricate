@@ -129,11 +129,26 @@ icons from `DESIGN_REPO_ROOT` and 422s without them.
    segment counts (determinism), user text as data only. Signature is
    `build(params, spec, repo_root, assets=None)`.
 3. Client preview case in `src/lib/design/preview/buildPreview.ts`
-   (approximate is fine — cosmetic), light-theme thumbnail in
-   `public/design-thumbs/`.
-4. Set `audience` to `"brands"` or `"you"` — it picks the gallery section.
+   (approximate is fine — cosmetic).
+4. Gallery thumbnail — **generated, not drawn**:
+
+   ```bash
+   python3 scripts/render-template-thumbs.py <template-id>
+   ```
+
+   It builds the template with its showcase params, runs the real pipeline,
+   and renders the resulting mesh in Fabricate purple to
+   `public/design-thumbs/<id>.png`. Software-rendered (project → depth-sort →
+   matplotlib polygons), so there's no GPU or headless browser in the loop
+   and output is identical on every machine. Add showcase params in the
+   script's `SHOWCASE` map — a bare default often leaves the text empty, and
+   a blank tag tells a customer nothing.
+
+   **Re-run it after changing a template's geometry**, or the card will
+   advertise the old shape.
+5. Set `audience` to `"brands"` or `"you"` — it picks the gallery section.
    Defaults to `"you"`.
-5. Bump `version` in the spec when changing existing geometry — old jobs
+6. Bump `version` in the spec when changing existing geometry — old jobs
    keep their recorded `templateVersion`.
 
 ### Geometry gotcha: never let parts merely touch

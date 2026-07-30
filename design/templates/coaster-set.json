@@ -5,7 +5,7 @@
   "category": "merch",
   "audience": "brands",
   "description": "Branded coasters with a condensation recess. Your logo or an icon, in sets of 4, 6 or 12.",
-  "thumbnail": "/design-thumbs/coaster-set.svg",
+  "thumbnail": "/design-thumbs/coaster-set.png",
   "params": {
     "logo": {
       "kind": "asset",

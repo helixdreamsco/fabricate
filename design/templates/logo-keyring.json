@@ -5,7 +5,7 @@
   "category": "merch",
   "audience": "brands",
   "description": "Your logo on a keyring or merch tag. Embossed, debossed or cut clean through.",
-  "thumbnail": "/design-thumbs/logo-keyring.svg",
+  "thumbnail": "/design-thumbs/logo-keyring.png",
   "params": {
     "logo": {
       "kind": "asset",

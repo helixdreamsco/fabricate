@@ -112,13 +112,16 @@ function TemplateRow({ templates }: { templates: TemplateSpec[] }) {
             href={`/design/${t.id}`}
             className="group flex h-full flex-col overflow-hidden rounded-xl border border-black/[0.08] bg-white transition-colors hover:border-black/25"
           >
+            {/* No mix-blend-multiply: that existed to knock the white out of
+                the old flat SVGs. These are transparent renders of the real
+                mesh, and multiplying would just muddy the purple. */}
             <div className="border-b border-black/[0.06] bg-[#f5f5f5] p-2.5">
               <Image
                 src={t.thumbnail}
-                alt={t.name}
-                width={200}
-                height={140}
-                className="block w-full mix-blend-multiply"
+                alt={`${t.name} — 3D preview`}
+                width={400}
+                height={280}
+                className="block w-full"
                 unoptimized
               />
             </div>

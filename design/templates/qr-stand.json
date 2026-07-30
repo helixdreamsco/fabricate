@@ -5,7 +5,7 @@
   "category": "signage",
   "audience": "brands",
   "description": "A counter stand with your link as a scannable QR code. Every code is decode-tested before it ships.",
-  "thumbnail": "/design-thumbs/qr-stand.svg",
+  "thumbnail": "/design-thumbs/qr-stand.png",
   "params": {
     "url": {
       "kind": "text",

@@ -4,7 +4,7 @@
   "name": "Bangle",
   "category": "wearable",
   "description": "A chunky wrist bangle with your text wrapped around the outside.",
-  "thumbnail": "/design-thumbs/bangle.svg",
+  "thumbnail": "/design-thumbs/bangle.png",
   "params": {
     "text": {
       "kind": "text",
