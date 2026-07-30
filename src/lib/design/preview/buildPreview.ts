@@ -63,6 +63,113 @@ function loadIconShapes(iconId: string): Promise<THREE.Shape[]> {
   return iconCache.get(iconId)!;
 }
 
+/**
+ * Uploaded logo shapes, fetched by asset id.
+ *
+ * Deliberately fetches the POLYGONS the server extracted at upload, not the
+ * SVG — re-parsing here with SVGLoader would be a second interpretation of
+ * the same artwork and the preview could drift from what actually prints.
+ */
+type AssetGeometry = {
+  shapes: Array<{ rings: number[][]; fillRule: "nonzero" | "evenodd" }>;
+  bounds: [number, number, number, number];
+};
+
+const assetCache = new Map<string, Promise<THREE.Shape[]>>();
+
+function ringToPoints(ring: number[]): THREE.Vector2[] {
+  const pts: THREE.Vector2[] = [];
+  // SVG y grows downward; negate to match the worker's y-up convention.
+  for (let i = 0; i + 1 < ring.length; i += 2) {
+    pts.push(new THREE.Vector2(ring[i], -ring[i + 1]));
+  }
+  return pts;
+}
+
+function ringArea(pts: THREE.Vector2[]): number {
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+function pointInRing(p: THREE.Vector2, ring: THREE.Vector2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i].y, yj = ring[j].y;
+    if (yi > p.y !== yj > p.y) {
+      const x = ((ring[j].x - ring[i].x) * (p.y - yi)) / (yj - yi) + ring[i].x;
+      if (p.x < x) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function loadAssetShapes(assetId: string): Promise<THREE.Shape[]> {
+  if (!assetCache.has(assetId)) {
+    assetCache.set(
+      assetId,
+      fetch(`/api/design/assets/${assetId}?format=geometry`)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`asset ${r.status}`))))
+        .then((data: { geometry: AssetGeometry }) => {
+          const out: THREE.Shape[] = [];
+          for (const shapeSpec of data.geometry.shapes) {
+            const rings = shapeSpec.rings
+              .map(ringToPoints)
+              .filter((r) => r.length >= 3);
+            if (!rings.length) continue;
+            // Largest ring is the outline; anything inside it is a counter.
+            // Matches how the worker resolves rings, so the two agree.
+            rings.sort((a, b) => ringArea(b) - ringArea(a));
+            const [outer, ...rest] = rings;
+            if (THREE.ShapeUtils.isClockWise(outer)) outer.reverse();
+            const shape = new THREE.Shape(outer);
+            for (const ring of rest) {
+              const isHole = pointInRing(ring[0], outer);
+              if (!isHole) {
+                out.push(new THREE.Shape(ring));
+                continue;
+              }
+              if (!THREE.ShapeUtils.isClockWise(ring)) ring.reverse();
+              shape.holes.push(new THREE.Path(ring));
+            }
+            out.push(shape);
+          }
+          return out;
+        })
+        .catch((e) => {
+          console.warn("logo preview unavailable", e);
+          return [];
+        }),
+    );
+  }
+  return assetCache.get(assetId)!;
+}
+
+/** Scale + centre a group of geometries so the group's largest side fits. */
+function fitGroup(
+  geoms: THREE.BufferGeometry[],
+  targetMm: number,
+): THREE.BufferGeometry[] {
+  const box = new THREE.Box3();
+  for (const g of geoms) {
+    g.computeBoundingBox();
+    box.union(g.boundingBox!);
+  }
+  const w = box.max.x - box.min.x;
+  const h = box.max.y - box.min.y;
+  const s = targetMm / Math.max(w, h, 1e-6);
+  const cx = ((box.min.x + box.max.x) / 2) * s;
+  const cy = ((box.min.y + box.max.y) / 2) * s;
+  for (const g of geoms) {
+    g.scale(s, s, 1);
+    g.translate(-cx, -cy, 0);
+  }
+  return geoms;
+}
+
 function roundedRectShape(w: number, h: number, r: number): THREE.Shape {
   const s = new THREE.Shape();
   const x = -w / 2, y = -h / 2;
@@ -205,195 +312,207 @@ export async function buildPreview(
       return applyRelief(plate, text, String(p.mode), [loop]);
     }
 
-    case "badge-round": {
-      const d = Number(p.diameterMm), thick = Number(p.thicknessMm);
-      const disc = new THREE.CylinderGeometry(d / 2, d / 2, thick, 64);
-      disc.rotateX(Math.PI / 2);
-      disc.translate(0, 0, thick / 2);
-      const tab = extrude(
-        (() => {
-          const s = new THREE.Shape();
-          s.absarc(0, 0, 4.5, 0, Math.PI * 2, false);
-          const hole = new THREE.Path();
-          hole.absarc(0, 0, 2, 0, Math.PI * 2, true);
-          s.holes.push(hole);
-          return s;
-        })(),
-        thick,
-      );
-      tab.translate(0, d / 2 + 2.5, 0);
-
-      const hasText = String(p.text).trim().length > 0;
-      const shapes = await loadIconShapes(String(p.icon));
-      const iconSize = d * (hasText ? 0.36 : 0.45);
-      // Extrude each polygon separately — overlapping polygons must be
-      // unioned via Manifold, not merged into one multi-shell mesh.
-      const polys = shapes.map((s) => extrude(s, relief));
-      const groupBox = new THREE.Box3();
-      for (const g of polys) {
-        g.computeBoundingBox();
-        groupBox.union(g.boundingBox!);
-      }
-      const iw = groupBox.max.x - groupBox.min.x;
-      const ih = groupBox.max.y - groupBox.min.y;
-      const s = iconSize / Math.max(iw, ih);
-      const cx = ((groupBox.min.x + groupBox.max.x) / 2) * s;
-      const cy = ((groupBox.min.y + groupBox.max.y) / 2) * s;
-      const zRelief = Number(p.mode === "deboss" ? thick - relief : thick - 0.05);
-      const reliefParts: THREE.BufferGeometry[] = [];
-      for (const g of polys) {
-        g.scale(s, s, 1);
-        g.translate(-cx, -cy + (hasText ? d * 0.12 : 0), zRelief);
-        reliefParts.push(g);
-      }
-      if (hasText) {
-        let text = await textGeometry(String(p.text), String(p.font), d * 0.14, relief);
-        if (text) {
-          text = fitText(text, d * 0.7, d * 0.2);
-          text.translate(0, -d * 0.28, zRelief);
-          reliefParts.push(text);
-        }
-      }
-      return applyRelief(disc, reliefParts, String(p.mode), [tab]);
-    }
-
-    case "nameplate-desk": {
+    case "logo-keyring": {
       const width = Number(p.widthMm);
-      const depth = 32, height = 38;
-      const tri = new THREE.Shape();
-      tri.moveTo(0, 0);
-      tri.lineTo(depth, 0);
-      tri.lineTo(0, height);
-      tri.closePath();
-      const wedge = extrude(tri, width);
-      wedge.rotateY(Math.PI / 2);
-      wedge.rotateZ(Math.PI / 2);
-      wedge.translate(-width / 2, depth / 2, 0);
-      // Sloped front face: from (y=-depth/2? ) — approximate: place text on the
-      // slope plane facing the viewer.
-      let text = await textGeometry(String(p.text), String(p.font), 14, relief);
-      let result: PreviewResult;
-      if (text) {
-        text = fitText(text, width - 16, height * 0.5);
-        const angle = Math.atan2(height, depth);
-        text.rotateX(Math.PI / 2 - angle);
-        const midZ = height / 2.4;
-        const midY = depth / 2 - (midZ / height) * depth;
-        text.translate(0, midY + (relief * Math.sin(angle)) * (p.mode === "deboss" ? -1 : 1) * 0.5, midZ);
-        result = await applyRelief(wedge, text, String(p.mode));
-      } else {
-        result = { base: wedge, overlay: null, overlayMode: null };
-      }
-      return result;
-    }
+      const thick = Number(p.thicknessMm);
+      const mode = String(p.mode);
+      const isDogTag = p.shape === "dog-tag";
+      const height = width * (isDogTag ? 0.72 : 0.62);
+      const corner = isDogTag ? height / 2 : Math.min(width, height) * 0.18;
 
-    case "cake-topper": {
-      const width = Number(p.widthMm);
-      let text = await textGeometry(String(p.text), String(p.font), 30, 3);
-      const bar = new THREE.BoxGeometry(width, 3, 8);
-      bar.translate(0, 1.5, 4);
-      const spike = (x: number) => {
-        const g = new THREE.CylinderGeometry(2.5, 0.8, 45, 12);
-        g.rotateX(Math.PI / 2);
-        g.translate(x, 1.5, -22.5);
-        return g;
-      };
-      const parts: THREE.BufferGeometry[] = [bar, spike(-width * 0.3), spike(width * 0.3)];
-      if (text) {
-        text = fitText(text, width - 6, 70);
-        text.computeBoundingBox();
-        const tb = text.boundingBox!;
-        // stand text upright in XZ plane, sitting on the bar
-        text.rotateX(Math.PI / 2);
-        text.translate(0, 3, 8 - tb.min.y);
-        parts.push(text);
-      }
-      return { base: displayMerge(parts), overlay: null, overlayMode: null };
-    }
+      // Body with the hanging hole punched out.
+      const bodyShape = roundedRectShape(width, height, corner);
+      const holeR = 2.5;
+      const holeCy = height / 2 - 3 - holeR;
+      const holePath = new THREE.Path();
+      holePath.absarc(0, holeCy, holeR, 0, Math.PI * 2, true);
+      bodyShape.holes.push(holePath);
+      const body = extrude(bodyShape, thick);
 
-    case "figure-modular": {
-      const height = Number(p.heightMm);
-      const u = height / 100; // template authored at 100mm, scaled
+      const faceTop = holeCy - holeR - 1.5;
+      const faceBottom = -height / 2 + 2;
+      const hasText = String(p.text ?? "").trim().length > 0;
+      const textH = hasText ? spec.constraints.minTextHeightMm : 0;
+      const logoTop = faceTop;
+      const logoBottom = faceBottom + (hasText ? textH + 2 : 0);
+      const logoSpan = Math.max(1, logoTop - logoBottom);
+
+      // Cut-through goes right through the plate; relief sits on the face.
+      const cutting = mode === "cut-through";
+      const depth = cutting ? thick + 2 : relief + 1;
+      const zBase = cutting ? -1 : mode === "deboss" ? thick - relief : thick - 1;
+
       const parts: THREE.BufferGeometry[] = [];
-      const baseDisc = new THREE.CylinderGeometry(30 * u, 32 * u, 8 * u, 48);
-      baseDisc.rotateX(Math.PI / 2);
-      baseDisc.translate(0, 0, 4 * u);
-
-      const bodyH = 48 * u, bodyR = 16 * u, bodyZ = 8 * u;
-      if (p.body === "capsule") {
-        const g = new THREE.CapsuleGeometry(bodyR, bodyH - 2 * bodyR, 8, 24);
-        g.rotateX(Math.PI / 2);
-        g.translate(0, 0, bodyZ + bodyH / 2);
-        parts.push(g);
-      } else if (p.body === "box") {
-        const g = new THREE.BoxGeometry(bodyR * 2, bodyR * 2, bodyH);
-        g.translate(0, 0, bodyZ + bodyH / 2);
-        parts.push(g);
-      } else {
-        const g = new THREE.SphereGeometry(bodyH / 2, 32, 24);
-        g.scale(0.85, 0.85, 1);
-        g.translate(0, 0, bodyZ + bodyH / 2);
-        parts.push(g);
-      }
-
-      const headR = 13 * u, headZ = bodyZ + bodyH + headR - 2 * u;
-      if (p.head === "sphere" || p.head === "cat") {
-        const g = new THREE.SphereGeometry(headR, 32, 24);
-        g.translate(0, 0, headZ);
-        parts.push(g);
-        if (p.head === "cat") {
-          for (const side of [-1, 1]) {
-            const ear = new THREE.ConeGeometry(5 * u, 9 * u, 16);
-            ear.rotateX(Math.PI / 2);
-            ear.translate(side * headR * 0.62, 0, headZ + headR * 0.85);
-            parts.push(ear);
+      const assetId = String(p.logo ?? "");
+      if (assetId) {
+        const shapes = await loadAssetShapes(assetId);
+        if (shapes.length) {
+          const logoSpec = spec.params.logo;
+          const areaFraction =
+            logoSpec?.kind === "asset" ? logoSpec.areaFraction : 0.45;
+          const target = Math.min(width * areaFraction, logoSpan);
+          const geoms = fitGroup(
+            shapes.map((s) => extrude(s, depth)),
+            target,
+          );
+          for (const g of geoms) {
+            g.translate(0, (logoTop + logoBottom) / 2, zBase);
+            parts.push(g);
           }
         }
-      } else {
-        const g = new THREE.BoxGeometry(headR * 1.8, headR * 1.8, headR * 1.8);
-        g.translate(0, 0, headZ);
-        parts.push(g);
+      }
+      if (hasText) {
+        let text = await textGeometry(String(p.text), String(p.font), textH, depth);
+        if (text) {
+          text = fitText(text, width * 0.8, textH);
+          text.translate(0, faceBottom + textH / 2, zBase);
+          parts.push(text);
+        }
+      }
+      if (!parts.length) {
+        return { base: displayMerge([body]), overlay: null, overlayMode: null };
+      }
+      // Cut-through and deboss both subtract; only emboss adds.
+      return applyRelief(body, parts, mode === "emboss" ? "emboss" : "deboss");
+    }
+
+    case "coaster-set": {
+      const size = Number(p.sizeMm);
+      const thick = Number(p.thicknessMm);
+      const mode = String(p.mode);
+      const recessDepth = 0.8;
+      const wall = 4;
+
+      const outline = (s: number): THREE.Shape => {
+        if (p.shape === "rounded-square") return roundedRectShape(s, s, s * 0.16);
+        const c = new THREE.Shape();
+        c.absarc(0, 0, s / 2, 0, Math.PI * 2, false);
+        return c;
+      };
+
+      // Body with the condensation recess sunk into the top face.
+      const body = extrude(outline(size), thick);
+      const recess = extrude(outline(size - wall * 2), recessDepth + 1);
+      recess.translate(0, 0, thick - recessDepth);
+      const dished = (await booleanMany(body, [recess], "subtract")) ?? body;
+
+      const floorZ = thick - recessDepth;
+      const artArea = (size - wall * 2) * 0.55;
+      // Emboss is capped at the recess depth so the set still stacks.
+      const artDepth = mode === "emboss" ? recessDepth : relief;
+
+      const assetId = String(p.logo ?? "");
+      let artGeoms: THREE.BufferGeometry[] = [];
+      if (assetId) {
+        const shapes = await loadAssetShapes(assetId);
+        if (shapes.length) {
+          artGeoms = fitGroup(shapes.map((s) => extrude(s, artDepth)), artArea);
+        }
+      }
+      if (!artGeoms.length) {
+        const shapes = await loadIconShapes(String(p.icon));
+        if (shapes.length) {
+          artGeoms = fitGroup(shapes.map((s) => extrude(s, artDepth)), artArea);
+        }
+      }
+      if (!artGeoms.length) {
+        return { base: displayMerge([dished]), overlay: null, overlayMode: null };
+      }
+      for (const g of artGeoms) {
+        g.translate(0, 0, mode === "emboss" ? floorZ : floorZ - relief);
+      }
+      return applyRelief(dished, artGeoms, mode);
+    }
+
+    case "qr-stand": {
+      const faceMm = Number(p.faceMm);
+      const url = String(p.url ?? "");
+      // Cosmetic only: the server regenerates, re-checks the module size and
+      // decode-tests the result. A preview that can't encode just shows the
+      // blank stand rather than blocking the user mid-type.
+      let matrix: boolean[][] | null = null;
+      try {
+        const QR = (await import("qrcode")).default;
+        const normalised = /^https?:\/\//i.test(url) ? url : `https://${url}`;
+        const created = QR.create(normalised, { errorCorrectionLevel: "M" });
+        const size = created.modules.size;
+        const data = created.modules.data;
+        // The worker's matrix includes a 4-module quiet zone; mirror that so
+        // the preview's module pitch matches the real part.
+        const quiet = 4;
+        const full = size + quiet * 2;
+        matrix = Array.from({ length: full }, (_, r) =>
+          Array.from({ length: full }, (_, c) => {
+            const sr = r - quiet, sc = c - quiet;
+            if (sr < 0 || sc < 0 || sr >= size || sc >= size) return false;
+            return Boolean(data[sr * size + sc]);
+          }),
+        );
+      } catch {
+        matrix = null;
       }
 
-      const accZ = headZ + headR;
-      if (p.accessory === "hat") {
-        const g = new THREE.ConeGeometry(headR * 0.9, 16 * u, 24);
-        g.rotateX(Math.PI / 2);
-        g.translate(0, 0, accZ + 6 * u);
-        parts.push(g);
-      } else if (p.accessory === "antenna") {
-        const stem = new THREE.CylinderGeometry(1.6 * u, 1.6 * u, 12 * u, 12);
-        stem.rotateX(Math.PI / 2);
-        stem.translate(0, 0, accZ + 5 * u);
-        const ball = new THREE.SphereGeometry(3 * u, 16, 12);
-        ball.translate(0, 0, accZ + 12 * u);
-        parts.push(stem, ball);
-      } else if (p.accessory === "crown") {
-        const band = new THREE.CylinderGeometry(headR * 0.75, headR * 0.75, 5 * u, 24);
-        band.rotateX(Math.PI / 2);
-        band.translate(0, 0, accZ + 1 * u);
-        parts.push(band);
-        for (let i = 0; i < 4; i++) {
-          const a = (i / 4) * Math.PI * 2;
-          const sp = new THREE.ConeGeometry(2.2 * u, 6 * u, 8);
-          sp.rotateX(Math.PI / 2);
-          sp.translate(Math.cos(a) * headR * 0.75, Math.sin(a) * headR * 0.75, accZ + 5 * u);
-          parts.push(sp);
+      const footMm = 14;
+      const captionText = String(p.text ?? "").trim();
+      const captionH = captionText ? spec.constraints.minTextHeightMm : 0;
+      const plateW = faceMm;
+      const plateH = footMm + faceMm + (captionText ? captionH + 8 : 0);
+      const plateT = 4;
+      const baseH = 8;
+      const moduleH = 1.2;
+
+      const plate = extrude(roundedRectShape(plateW, plateH, 3), plateT);
+      const parts: THREE.BufferGeometry[] = [];
+
+      if (matrix) {
+        const n = matrix.length;
+        const modMm = faceMm / n;
+        const qrCentreY = plateH / 2 - faceMm / 2;
+        for (let r = 0; r < n; r++) {
+          let c = 0;
+          while (c < n) {
+            if (!matrix[r][c]) { c++; continue; }
+            const start = c;
+            while (c < n && matrix[r][c]) c++;
+            const run = c - start;
+            const box = new THREE.BoxGeometry(run * modMm, modMm, moduleH);
+            box.translate(
+              -faceMm / 2 + (start + run / 2) * modMm,
+              qrCentreY + faceMm / 2 - (r + 0.5) * modMm,
+              plateT + moduleH / 2,
+            );
+            parts.push(box);
+          }
         }
       }
 
-      let text =
-        String(p.baseText ?? "").trim().length > 0
-          ? await textGeometry(String(p.baseText), String(p.font), 6 * u, spec.constraints.reliefDepthMm)
-          : null;
-      if (text) {
-        text = fitText(text, 44 * u, 7 * u);
-        text.rotateX(Math.PI / 2);
-        text.translate(0, -31 * u, 1.5 * u);
+      if (captionText) {
+        let caption = await textGeometry(
+          captionText, String(p.font), captionH, moduleH,
+        );
+        if (caption) {
+          caption = fitText(caption, plateW * 0.86, captionH);
+          caption.translate(0, -plateH / 2 + footMm + 4 + captionH / 2, plateT);
+          parts.push(caption);
+        }
       }
-      // Text booleans onto the base disc only; body/head/accessory parts are
-      // merged for display (the server unions everything properly).
-      return applyRelief(baseDisc, text, "emboss", parts);
+
+      // Lean the panel back and seat it in the plinth.
+      const panel = displayMerge([plate, ...parts]);
+      const tilt = THREE.MathUtils.degToRad(90 - 70);
+      panel.rotateX(Math.PI / 2 - tilt);
+      panel.computeBoundingBox();
+      panel.translate(0, 0, -panel.boundingBox!.min.z + baseH - 4.8);
+
+      const baseDepth = Math.max(faceMm * 0.55, 30);
+      const base = extrude(roundedRectShape(plateW, baseDepth, 4), baseH);
+      base.translate(0, -baseDepth / 2 + plateH * 0.12, 0);
+
+      return {
+        base: displayMerge([base, panel]),
+        overlay: null,
+        overlayMode: null,
+      };
     }
 
     case "bangle": {

@@ -1,12 +1,18 @@
-"""Template registry: {template_id: build(params, spec, repo_root) -> trimesh.Trimesh}."""
+"""Template registry.
 
-from . import badge_round, bangle, cake_topper, figure_modular, keychain_text, nameplate_desk
+Builder contract:
+    build(params, spec, repo_root, assets=None) -> trimesh.Trimesh
+
+`assets` maps asset id -> inline logo polygons for templates with an `asset`
+parameter; templates without one ignore it.
+"""
+
+from . import bangle, coaster_set, keychain_text, logo_keyring, qr_stand
 
 REGISTRY = {
     "keychain-text": keychain_text.build,
-    "nameplate-desk": nameplate_desk.build,
-    "badge-round": badge_round.build,
-    "cake-topper": cake_topper.build,
-    "figure-modular": figure_modular.build,
     "bangle": bangle.build,
+    "logo-keyring": logo_keyring.build,
+    "qr-stand": qr_stand.build,
+    "coaster-set": coaster_set.build,
 }

@@ -7,6 +7,7 @@ import { estimateQuote, type Quote } from "@/lib/pricing";
 import { MATERIALS } from "@/lib/catalog";
 import type { DesignJob, Prisma } from "@prisma/client";
 import { generateDesign, repairMesh, DesignServiceError, type DesignMetrics } from "./pyapi";
+import { resolveAssetsForWorker } from "./assets";
 import { getProvider, refineEnabled, GenerationError } from "./meshy";
 import { GENERATION_TIMEOUT_MS, shapePrompt, type TaskKind } from "./provider";
 import { moderatePrompt, moderateImage } from "./moderation";
@@ -96,7 +97,12 @@ export async function createPresetJob(opts: {
   canonicalParams: string;
   hash: string;
   params: Record<string, string | number>;
+  /** Units ordered. Never part of the hash — see the note on the column. */
+  quantity?: number;
+  /** Param keys of kind `asset`, resolved to polygons for the worker. */
+  assetKeys?: string[];
 }): Promise<{ jobId: string; cached: boolean }> {
+  const quantity = opts.quantity ?? 1;
   // Geometry cache: identical canonical params → reuse a finished job's
   // artifacts (files are per-job but immutable once ready).
   const cached = await prisma.designJob.findFirst({
@@ -113,6 +119,7 @@ export async function createPresetJob(opts: {
         templateVersion: opts.templateVersion,
         paramsJson: opts.canonicalParams,
         paramsHash: opts.hash,
+        quantity,
         state: "ready",
         stateHistory: [{ state: "ready", at: new Date().toISOString() }],
         badge: cached.badge,
@@ -133,6 +140,7 @@ export async function createPresetJob(opts: {
       templateVersion: opts.templateVersion,
       paramsJson: opts.canonicalParams,
       paramsHash: opts.hash,
+      quantity,
       state: "processing",
       stateHistory: [{ state: "processing", at: new Date().toISOString() }],
     },
@@ -140,10 +148,20 @@ export async function createPresetJob(opts: {
 
   void (async () => {
     try {
+      // The worker can't read our storage, so any logo referenced by an
+      // `asset` param has to be resolved to polygons and sent inline. This
+      // throws rather than degrading: a part rebuilt without its logo would
+      // look fine to the pipeline and wrong to the customer.
+      const assets = await resolveAssetsForWorker(
+        opts.identity.userId,
+        opts.params,
+        opts.assetKeys ?? [],
+      );
       const result = await generateDesign(
         opts.templateId,
         opts.templateVersion,
         opts.params,
+        assets,
       );
       const keys = await writeArtifacts(job.id, result.stl, result.glb);
       await setState(job.id, "ready", {
@@ -481,8 +499,11 @@ export async function getJob(
 /** Indicative price using the marketplace's own pricing engine. The real
  *  quote happens on /configure after handoff — this uses the same
  *  estimateQuote so the numbers agree. Volume is reconstructed from the
- *  slicer's true filament mass so weight matches exactly. */
-export function indicativeQuote(metrics: DesignMetrics): Quote {
+ *  slicer's true filament mass so weight matches exactly.
+ *
+ *  `metrics` always describes ONE unit (we never slice N copies); quantity
+ *  scales the result and earns any volume break. */
+export function indicativeQuote(metrics: DesignMetrics, quantity = 1): Quote {
   const pla = MATERIALS.find((m) => m.key === "PLA")!;
   const infillFactor = 0.25 + (15 / 100) * 0.75;
   const volumeCm3 = metrics.filamentG / (pla.densityGPerCm3 * infillFactor);
@@ -491,7 +512,7 @@ export function indicativeQuote(metrics: DesignMetrics): Quote {
     material: "PLA",
     quality: "standard",
     infillPct: 15,
-    quantity: 1,
+    quantity,
     delivery: "pickup",
   });
 }
@@ -505,6 +526,7 @@ export function publicJobView(row: DesignJob) {
     templateId: row.templateId,
     templateVersion: row.templateVersion,
     params: row.paramsJson ? (JSON.parse(row.paramsJson) as { p?: object }).p ?? null : null,
+    quantity: row.quantity,
     state: row.state,
     progress: row.progress,
     stage: row.stage,
@@ -515,7 +537,10 @@ export function publicJobView(row: DesignJob) {
     stlUrl: row.stlKey ? `/api/design/files/${row.stlKey}` : null,
     glbUrl: row.glbKey ? `/api/design/files/${row.glbKey}` : null,
     metrics,
-    quote: row.state === "ready" && metrics ? indicativeQuote(metrics) : null,
+    quote:
+      row.state === "ready" && metrics
+        ? indicativeQuote(metrics, row.quantity)
+        : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

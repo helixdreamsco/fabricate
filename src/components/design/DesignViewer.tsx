@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three-stdlib";
 import { Viewer, type ViewerPart } from "@/components/configure/Viewer";
 import { MonoLabel } from "@/components/ui/MonoLabel";
+import { MATERIALS } from "@/lib/catalog";
 import type { PreviewResult } from "@/lib/design/preview/buildPreview";
 
 /**
@@ -11,8 +12,16 @@ import type { PreviewResult } from "@/lib/design/preview/buildPreview";
  * exactly like uploaded parts (same grid, shadows, controls, framing).
  */
 
-const INK = "#0a0a0a";
-const ACCENT = "#9ca3af";
+/**
+ * Fabricate purple, read from the material palette rather than hardcoded so
+ * it stays in step with /configure — which defaults an uploaded part to
+ * exactly this (`MATERIALS[0].colors[0].hex`). A design and the same design
+ * after handoff should not change colour under the user.
+ */
+const FILAMENT = MATERIALS[0].colors[0].hex;
+/** Deboss overlay when the preview boolean is unavailable — reads as a
+ *  recess by sitting darker than the surrounding filament. */
+const RECESS = "#4c1d95";
 
 function useGlbParts(url: string | null): ViewerPart[] | null {
   const [parts, setParts] = React.useState<ViewerPart[] | null>(null);
@@ -29,7 +38,7 @@ function useGlbParts(url: string | null): ViewerPart[] | null {
           if (obj instanceof THREE.Mesh && obj.geometry) {
             const geo = (obj.geometry as THREE.BufferGeometry).clone();
             geo.applyMatrix4(obj.matrixWorld);
-            found.push({ id: geo.uuid, geometry: geo, color: INK });
+            found.push({ id: geo.uuid, geometry: geo, color: FILAMENT });
           }
         });
         setParts(found);
@@ -66,13 +75,13 @@ export function DesignViewer({
       return clone;
     };
     const out: ViewerPart[] = [
-      { id: "base", geometry: rotate(preview.base), color: INK },
+      { id: "base", geometry: rotate(preview.base), color: FILAMENT },
     ];
     if (preview.overlay) {
       out.push({
         id: "overlay",
         geometry: rotate(preview.overlay),
-        color: preview.overlayMode === "deboss" ? ACCENT : INK,
+        color: preview.overlayMode === "deboss" ? RECESS : FILAMENT,
       });
     }
     return out;

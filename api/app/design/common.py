@@ -32,6 +32,10 @@ FONT_MAP = {
 }
 
 
+# Must stay in step with ASSET_ID_RE in src/lib/design/schema.ts.
+ASSET_ID_PATTERN = r"asset_[a-f0-9]{24}"
+
+
 class InvalidParams(ValueError):
     """Raised when job params fail spec validation."""
 
@@ -97,6 +101,17 @@ def validate_params(params, spec):
         elif kind == "icon":
             if not isinstance(value, str) or re.fullmatch(r"[a-z0-9-]+", value) is None:
                 raise InvalidParams("invalid_params: %s is not a valid icon id" % name)
+        elif kind == "asset":
+            # Value is an opaque asset id; the artwork itself arrives out of
+            # band in the request's `assets` map (this service has no access
+            # to the Node side's storage). "" means no asset supplied.
+            if not isinstance(value, str):
+                raise InvalidParams("invalid_params: %s must be a string" % name)
+            if value == "":
+                if p.get("required"):
+                    raise InvalidParams("invalid_params: %s is required" % name)
+            elif re.fullmatch(ASSET_ID_PATTERN, value) is None:
+                raise InvalidParams("invalid_params: %s is not a valid asset id" % name)
         else:
             raise InvalidParams("invalid_params: unsupported param kind %r" % kind)
         out[name] = value
@@ -245,6 +260,88 @@ def icon_mesh(svg_path, target_mm, depth_mm):
 
 
 # ---------------------------------------------------------------------------
+# Uploaded logo assets -> mesh
+# ---------------------------------------------------------------------------
+
+def asset_geometry(asset):
+    """Shapely geometry for an inline logo asset, y-flipped to y-up.
+
+    The asset arrives as flat rings already extracted and fill-rule-tagged by
+    the Node side (see src/lib/design/svg/geometry.ts). Parsing the SVG again
+    here would risk the worker and the browser preview disagreeing about the
+    same logo, so this deliberately consumes polygons rather than markup.
+
+    Returns a geometry centred on the origin, or None when the asset is empty.
+    """
+    if not isinstance(asset, dict):
+        raise InvalidParams("invalid_params: malformed asset payload")
+    shapes = asset.get("shapes") or []
+    combined = None
+    for shape in shapes:
+        rings = shape.get("rings") or []
+        rule = shape.get("fillRule", "nonzero")
+        # SVG y grows downward; every consumer here works y-up.
+        flipped = [[(float(r[i]), -float(r[i + 1])) for i in range(0, len(r) - 1, 2)]
+                   for r in rings]
+        if rule == "evenodd":
+            geom = _combine_even_odd([np.asarray(r) for r in flipped if len(r) >= 3])
+        else:
+            # Nonzero: the outer ring is the largest; anything strictly inside
+            # it is a hole. Shapely has no winding-aware union, and this
+            # containment rule matches how logos are actually drawn.
+            polys = []
+            for ring in flipped:
+                if len(ring) < 3:
+                    continue
+                poly = Polygon(ring)
+                if not poly.is_valid:
+                    poly = poly.buffer(0)
+                if not poly.is_empty and poly.area > 0:
+                    polys.append(poly)
+            if not polys:
+                continue
+            polys.sort(key=lambda p: -p.area)
+            geom = polys[0]
+            for poly in polys[1:]:
+                geom = geom.difference(poly) if geom.contains(poly) else geom.union(poly)
+        if geom is None or geom.is_empty:
+            continue
+        combined = geom if combined is None else combined.union(geom)
+
+    if combined is None or combined.is_empty:
+        return None
+    from shapely.affinity import translate
+
+    minx, miny, maxx, maxy = combined.bounds
+    return translate(combined, -(minx + maxx) / 2.0, -(miny + maxy) / 2.0)
+
+
+def asset_mesh(asset, target_mm, depth_mm):
+    """Extruded logo solid scaled so its largest XY extent == target_mm,
+    XY-centred at the origin, base at z=0. None when the asset is empty."""
+    geom = asset_geometry(asset)
+    if geom is None:
+        return None
+    minx, miny, maxx, maxy = geom.bounds
+    extent = max(maxx - minx, maxy - miny)
+    if extent <= 0:
+        return None
+    scale = target_mm / extent
+    meshes = [trimesh.creation.extrude_polygon(p, depth_mm / scale)
+              for p in _iter_polygons(geom)]
+    if not meshes:
+        return None
+    mesh = trimesh.util.concatenate(meshes)
+    mesh.apply_scale([scale, scale, scale])
+    zmin, zmax = mesh.bounds[0][2], mesh.bounds[1][2]
+    if zmax - zmin > 0:
+        mesh.apply_scale([1.0, 1.0, depth_mm / (zmax - zmin)])
+    b = mesh.bounds
+    mesh.apply_translation([-(b[0][0] + b[1][0]) / 2.0, -(b[0][1] + b[1][1]) / 2.0, -b[0][2]])
+    return mesh
+
+
+# ---------------------------------------------------------------------------
 # manifold3d boolean helpers
 # ---------------------------------------------------------------------------
 
@@ -344,6 +441,11 @@ def rounded_rect_polygon(width, height, radius):
     core = shapely_box(-width / 2.0 + radius, -height / 2.0 + radius,
                        width / 2.0 - radius, height / 2.0 - radius)
     return core.buffer(radius, quad_segs=BUFFER_QUAD_SEGS)
+
+
+def extrude_polygon_solid(polygon, thickness):
+    """Extruded shapely polygon, base at z=0."""
+    return trimesh.creation.extrude_polygon(polygon, thickness)
 
 
 def rounded_plate(width, height, radius, thickness):

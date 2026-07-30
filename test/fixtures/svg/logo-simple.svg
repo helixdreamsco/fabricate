@@ -1,0 +1,5 @@
+<!-- A well-behaved small-brand logo: one chunky filled mark, comfortably
+     above the minimum feature width. This is the "must sail through" case. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <path d="M20 20 H 80 V 45 H 55 V 80 H 20 Z" fill="#111"/>
+</svg>

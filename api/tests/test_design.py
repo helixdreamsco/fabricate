@@ -5,6 +5,10 @@ import hashlib
 import json
 import os
 import struct
+import threading
+import time
+
+from app.design import routes
 
 PRUSA_BIN = "/Applications/PrusaSlicer.app/Contents/MacOS/PrusaSlicer"
 
@@ -26,6 +30,33 @@ def _decode_stl(b64):
     (tri_count,) = struct.unpack("<I", stl[80:84])
     assert len(stl) == 84 + 50 * tri_count, "binary STL length mismatch"
     return stl, tri_count
+
+
+def _component_count(stl):
+    """Connected bodies in a binary STL, joined through shared vertices."""
+    (tri_count,) = struct.unpack("<I", stl[80:84])
+    parent = {}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    for i in range(tri_count):
+        # 50-byte record: 12B normal, 3 x 12B vertex, 2B attribute count.
+        base = 84 + 50 * i + 12
+        verts = [struct.unpack_from("<3f", stl, base + 12 * v) for v in range(3)]
+        for v in verts:
+            parent.setdefault(v, v)
+        union(verts[0], verts[1])
+        union(verts[0], verts[2])
+    return len({find(v) for v in parent})
 
 
 def _assert_metrics(metrics):
@@ -94,9 +125,12 @@ def test_repair_ai_fixture(client, fixture_dir):
     body = r.json()
     assert body["badge"] in VALID_BADGES
     _assert_metrics(body["metrics"])
-    # Floating debris (<2 % volume) dropped: bbox is the blob, not the island.
-    assert max(body["metrics"]["bboxMm"]) < 60
-    _decode_stl(body["stl_b64"])
+    # The fixture is three bodies — 91.5 %, 8.5 % and 0.01 % of total volume.
+    # Only the last is under the 2 % island threshold, so exactly it is
+    # dropped and two bodies survive. (The bbox can no longer show this: AI
+    # meshes are scaled to a fixed longest edge, which normalises it away.)
+    stl, _ = _decode_stl(body["stl_b64"])
+    assert _component_count(stl) == 2
     if os.path.isfile(PRUSA_BIN):
         assert body["metrics"]["sliced"] is True
 
@@ -109,10 +143,61 @@ def test_repair_unloadable_422(client):
     assert r.status_code == 422
 
 
-def test_health_includes_design(client):
+def test_health_includes_design(client, fixture_dir):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
     assert body["status"] == "ok"
     assert body["design"]["ok"] is True
-    assert body["design"]["templates"] == 6
+
+    # Every spec JSON on disk must have a registered builder. Counted from the
+    # specs rather than hardcoded, so adding a template doesn't break this —
+    # but shipping a spec whose builder was never wired up still does.
+    templates_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "design", "templates",
+    )
+    on_disk = len([f for f in os.listdir(templates_dir) if f.endswith(".json")])
+    assert body["design"]["templates"] == on_disk
+
+
+def test_pipeline_runs_are_serialised(client, monkeypatch):
+    """Concurrent requests must not run the geometry stack side by side.
+
+    A dense AI mesh peaks around 2 GB across trimesh, the PrusaSlicer child
+    and the G-code it writes to /tmp (a tmpfs on Cloud Run, so it counts
+    against the same limit). Two at once exceeded the 4 GiB container and got
+    the service OOM-killed, which surfaced as a 503 from /design/repair.
+    """
+    spans = []
+    lock = threading.Lock()
+    real_process = routes.pipeline.process
+
+    def traced(*args, **kwargs):
+        start = time.time()
+        try:
+            return real_process(*args, **kwargs)
+        finally:
+            # widen the window so an unguarded overlap is actually observable
+            time.sleep(0.2)
+            with lock:
+                spans.append((start, time.time()))
+
+    monkeypatch.setattr(routes.pipeline, "process", traced)
+
+    codes = {}
+
+    def fire(n):
+        codes[n] = _generate(client).status_code
+
+    threads = [threading.Thread(target=fire, args=(i,)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert codes == {0: 200, 1: 200, 2: 200, 3: 200}
+    assert len(spans) == 4
+    spans.sort()
+    for (_, prev_end), (next_start, _) in zip(spans, spans[1:]):
+        assert next_start >= prev_end - 1e-6, "pipeline runs overlapped"

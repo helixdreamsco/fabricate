@@ -57,12 +57,6 @@ export async function TopNav() {
           {user ? (
             <>
               <Link
-                href="/design"
-                className="hidden md:inline-flex font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 hover:text-black transition-colors"
-              >
-                Design
-              </Link>
-              <Link
                 href="/"
                 className="hidden md:inline-flex font-mono text-[10px] uppercase tracking-[0.18em] text-black/55 hover:text-black transition-colors"
               >

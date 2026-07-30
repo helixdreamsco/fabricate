@@ -1,0 +1,6 @@
+<!-- Three separate marks, the shape of a real wordmark-plus-icon logo. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 100">
+  <path d="M10 10 H 90 V 90 H 10 Z" fill="#111"/>
+  <circle cx="150" cy="50" r="35" fill="#111"/>
+  <polygon points="220,15 285,50 220,85" fill="#111"/>
+</svg>

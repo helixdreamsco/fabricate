@@ -64,7 +64,8 @@ model User {
   referredByCode        AffiliateCode?  @relation("AffiliateCodeRedemption", fields: [referredByCodeId], references: [id])
   affiliateBonusClaimed Boolean         @default(false)
 
-  designJobs DesignJob[] @relation("DesignJobOwner")
+  designJobs   DesignJob[]   @relation("DesignJobOwner")
+  designAssets DesignAsset[] @relation("DesignAssetOwner")
 }
 
 model Account {
@@ -1040,6 +1041,10 @@ model DesignJob {
   templateVersion Int?
   paramsJson      String? @db.Text // canonicalised parameter JSON (presets)
   paramsHash      String // dedupe / cache key
+  /// Units ordered. Deliberately NOT part of paramsJson/paramsHash: N units
+  /// are one identical STL, so quantity must not fragment the geometry cache
+  /// or trigger a re-slice. Quoting multiplies the single-unit slice result.
+  quantity        Int     @default(1)
   prompt          String? @db.Text
   shapedPrompt    String? @db.Text
   seed            Int     @default(0)
@@ -1064,6 +1069,45 @@ model DesignJob {
   @@index([userId, createdAt])
   @@index([anonId, createdAt])
   @@index([paramsHash, createdAt])
+}
+
+/// A user-uploaded vector asset (brand logo) usable as an `asset` template
+/// parameter. Immutable once created: template parameter JSON references it
+/// by id, and the geometry cache assumes that id always means the same
+/// artwork. Re-uploading identical bytes reuses the existing row.
+model DesignAsset {
+  /// Public id in the form `asset_<24 hex>` — this is the value that appears
+  /// in a template's parameter JSON.
+  id     String  @id
+  userId String
+  user   User    @relation("DesignAssetOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  kind        String @default("svg")
+  /// sha256 of the SANITISED bytes — dedupe key, per owner.
+  contentHash String
+  filename    String
+
+  /// Storage keys under DATA_DIR/designs/assets/. `svgKey` is the sanitised
+  /// artwork (the only form ever stored or served); `geometryKey` is the
+  /// extracted polygon JSON that both the preview and the worker extrude.
+  svgKey      String
+  geometryKey String
+
+  /// Artwork bounds in viewBox units, and shape/ring counts, for the UI.
+  widthUnits  Float
+  heightUnits Float
+  shapeCount  Int
+  /// True when the source was stroke-only and we outlined it to get area.
+  autoOutlined Boolean @default(false)
+
+  /// Moderation verdict, same fail-closed contract as AI prompts/images.
+  moderationVerdict String  @default("pending") // pending|allow|block
+  moderationReason  String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, contentHash])
+  @@index([userId, createdAt])
 }
 
 model DesignModerationLog {

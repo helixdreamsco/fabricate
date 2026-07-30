@@ -3,6 +3,7 @@ import { checkBlocklist, blockMessage } from "./blocklist";
 import {
   classifyPrompt,
   classifyImage,
+  classifyLogo,
   classifierAvailable,
   type ClassifierTransport,
 } from "./classifier";
@@ -61,6 +62,35 @@ export async function moderatePrompt(
     message:
       result.verdict === "block"
         ? `We can't generate that: ${result.reason}. Try an original design!`
+        : RETRY_MESSAGE,
+    stage: "classifier",
+  };
+}
+
+/**
+ * Moderate an uploaded brand logo. Fail-closed like the rest of the design
+ * moderation, but the block message is written for a business owner who has
+ * uploaded their own mark and needs a route forward rather than a scolding.
+ */
+export async function moderateLogo(
+  identity: DesignIdentity,
+  sanitisedSvg: string,
+  transport?: ClassifierTransport,
+): Promise<ModerationResult> {
+  const result = await (transport
+    ? classifyLogo(sanitisedSvg, transport)
+    : classifyLogo(sanitisedSvg));
+  if (result.verdict === "allow") {
+    await logBlock(identity, "[logo upload]", "classifier", "allow", null);
+    return { allowed: true };
+  }
+  const reason = result.verdict === "block" ? result.reason : "classifier unavailable";
+  await logBlock(identity, "[logo upload]", "classifier", "block", reason);
+  return {
+    allowed: false,
+    message:
+      result.verdict === "block"
+        ? `We can't print that logo: ${reason}. If this is your own brand, get in touch and we'll sort it out.`
         : RETRY_MESSAGE,
     stage: "classifier",
   };

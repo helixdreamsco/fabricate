@@ -11,6 +11,7 @@ import { analyzeSTL } from "@/lib/stl";
 import {
   clearPendingUpload,
   loadPendingUpload,
+  loadPendingHints,
 } from "@/lib/order-storage";
 import { MATERIALS } from "@/lib/catalog";
 import { postAnalyze } from "@/lib/api";
@@ -37,16 +38,24 @@ export default function ConfigurePage() {
         return;
       }
       try {
-        const [analysis, serverAnalysis] = await Promise.all([
+        const [analysis, serverAnalysis, hints] = await Promise.all([
           analyzeSTL(file),
           postAnalyze(file).catch(() => null),
+          loadPendingHints().catch(() => null),
         ]);
         if (cancelled) return;
         const partColors = defaultPartColors(
           analysis,
           MATERIALS[0].colors[0].hex,
         );
-        set({ file, analysis, serverAnalysis, partColors });
+        set({
+          file,
+          analysis,
+          serverAnalysis,
+          partColors,
+          // A run size chosen in the design customiser wins over the default.
+          ...(hints?.quantity ? { quantity: hints.quantity } : {}),
+        });
         await clearPendingUpload().catch(() => undefined);
       } catch {
         await clearPendingUpload().catch(() => undefined);

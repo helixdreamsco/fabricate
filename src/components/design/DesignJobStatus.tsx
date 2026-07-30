@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { savePendingUpload } from "@/lib/order-storage";
+import { savePendingUpload, savePendingHints } from "@/lib/order-storage";
 import type { DesignJobView } from "@/hooks/useDesignJob";
 
 const STATE_COPY: Record<string, string> = {
@@ -86,6 +86,9 @@ export function DesignJobStatus({
       const blob = await res.blob();
       const file = new File([blob], fileName, { type: "model/stl" });
       await savePendingUpload(file);
+      // Carry the run size across the handoff so /configure doesn't silently
+      // reset a 25-unit merch order back to 1.
+      await savePendingHints({ quantity: job.quantity ?? 1 });
       router.push("/configure");
     } catch (e) {
       setHandoffError(
@@ -192,7 +195,20 @@ export function DesignJobStatus({
                 <div className="text-2xl font-light tracking-tight text-black">
                   £{job.quote.total.toFixed(2)}
                 </div>
-                <MonoLabel size="xs">Indicative · PLA · standard · pickup</MonoLabel>
+                <MonoLabel size="xs">
+                  {job.quantity > 1
+                    ? `${job.quantity} units · £${(job.quote.total / job.quantity).toFixed(2)} each`
+                    : "Indicative · PLA · standard · pickup"}
+                </MonoLabel>
+                {job.quote.quantityTierPct > 0 ? (
+                  <MonoLabel
+                    size="xs"
+                    muted={false}
+                    className="mt-1 block text-[#047857]"
+                  >
+                    Volume break · {job.quote.quantityTierPct}% off
+                  </MonoLabel>
+                ) : null}
               </>
             ) : null}
           </div>

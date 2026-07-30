@@ -1,0 +1,10 @@
+<!-- Deliberately too thin: the filled bars are 0.4 units wide in a 100-unit
+     viewBox, so at a 30 mm logo area they land at ~0.12 mm — far under the
+     1.0 mm minimum feature width. Must be flagged, never silently printed. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect x="10" y="10" width="0.4" height="80" fill="#111"/>
+  <rect x="30" y="10" width="0.4" height="80" fill="#111"/>
+  <rect x="50" y="10" width="0.4" height="80" fill="#111"/>
+  <rect x="70" y="10" width="0.4" height="80" fill="#111"/>
+  <rect x="90" y="10" width="0.4" height="80" fill="#111"/>
+</svg>

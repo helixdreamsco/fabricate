@@ -38,6 +38,29 @@ ALLOW ordinary objects, original sculptures/toys, plants, tools, furniture, food
 
 Respond with EXACTLY one line: "ALLOW" or "BLOCK: <short reason>".`;
 
+const LOGO_SYSTEM = `You are a content moderator for a 3D-printing service that prints branded merchandise.
+Businesses upload their own logo as an SVG to put on keyrings, coasters and signage.
+You are shown the SVG source. Decide if it is allowed.
+
+BLOCK only when the artwork clearly is:
+- A hate symbol, extremist insignia, or a symbol whose primary modern use is hateful.
+- Sexual or adult content.
+- The registered mark of a MAJOR global brand — the sort of mark almost anyone
+  would recognise (e.g. the Nike swoosh, the Apple silhouette, the Adidas
+  trefoil, McDonald's golden arches, a Disney or Pokemon character, a car
+  marque's badge, a football club crest). These are trademark risks because
+  the uploader is overwhelmingly unlikely to be that brand.
+- A weapon or realistic weapon replica.
+
+ALLOW everything else, and lean strongly toward allowing. Nearly every upload
+is a small business printing its own logo: abstract marks, monograms,
+initials, geometric shapes, simple icons, wordmarks of companies you have
+never heard of, local clubs, bands, cafes, charities. An unfamiliar name is
+evidence the uploader owns it, NOT evidence of infringement. Do not block for
+looking "generic", "professional", or vaguely similar to some other logo.
+
+Respond with EXACTLY one line: "ALLOW" or "BLOCK: <short reason>".`;
+
 export type ClassifierVerdict =
   | { verdict: "allow" }
   | { verdict: "block"; reason: string }
@@ -101,6 +124,25 @@ export async function classifyPrompt(
   transport: ClassifierTransport = anthropicTransport,
 ): Promise<ClassifierVerdict> {
   return classify(SYSTEM, `Prompt: ${JSON.stringify(prompt)}`, transport);
+}
+
+/**
+ * Moderation for uploaded brand logos. The classifier reads the sanitised
+ * SVG source rather than a render: the markup is already safe to hand over,
+ * and it carries the wordmark text that makes a major-brand mark
+ * recognisable.
+ */
+export async function classifyLogo(
+  sanitisedSvg: string,
+  transport: ClassifierTransport = anthropicTransport,
+): Promise<ClassifierVerdict> {
+  // Cap what we send: a huge path soup adds no signal and costs tokens.
+  const excerpt = sanitisedSvg.slice(0, 20_000);
+  return classify(
+    LOGO_SYSTEM,
+    `Uploaded logo SVG:\n${excerpt}`,
+    transport,
+  );
 }
 
 /** Vision moderation for image-to-3D uploads. `dataUri` = data:image/...;base64,... */

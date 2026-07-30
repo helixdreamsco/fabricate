@@ -8,6 +8,8 @@ export interface DesignJobView {
   templateId: string | null;
   templateVersion: number | null;
   params: Record<string, string | number> | null;
+  /** Units ordered. 1 for single-item templates and all AI jobs. */
+  quantity: number;
   state:
     | "queued" | "moderating" | "blocked" | "generating" | "downloading"
     | "processing" | "ready" | "failed";
@@ -26,7 +28,13 @@ export interface DesignJobView {
     sliced: boolean;
     supportsNeeded: boolean;
   } | null;
-  quote: { total: number; estMinutes: number; weightG: number } | null;
+  quote: {
+    total: number;
+    estMinutes: number;
+    weightG: number;
+    /** Volume break applied, for the "25+ −20%" badge. 0 when none. */
+    quantityTierPct: number;
+  } | null;
 }
 
 const TERMINAL = new Set(["ready", "failed", "blocked"]);

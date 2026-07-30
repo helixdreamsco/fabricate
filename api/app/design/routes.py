@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 
 import trimesh
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -29,6 +30,20 @@ router = APIRouter(prefix="/design", tags=["design"])
 
 MAX_UPLOAD_BYTES = 60 * 1024 * 1024
 ALLOWED_UPLOAD_EXTS = ("glb", "obj", "stl")
+
+# One repair/generate through the geometry stack at a time, per container.
+#
+# A dense AI mesh (~300k triangles in, 150k out) peaks around 2 GB across the
+# trimesh pipeline, the PrusaSlicer child process and the G-code it writes to
+# /tmp — which is a tmpfs on Cloud Run and so counts against the same limit.
+# Two of those in parallel exceeded the 4 GiB container and got the service
+# OOM-killed mid-request, surfacing to the user as a 503 from /design/repair.
+#
+# The platform's own concurrency setting can bound this, but only as long as
+# nobody re-deploys with a different value, so the ceiling is enforced here
+# too. Waiters queue; the service's request timeout is comfortably longer than
+# a pipeline run.
+_PIPELINE_SLOT = threading.BoundedSemaphore(1)
 
 
 def load_spec(template_id):
@@ -51,6 +66,10 @@ class GenerateRequest(BaseModel):
     template_id: str
     template_version: int
     params: dict
+    # Inline logo artwork keyed by asset id. This service is stateless and
+    # cannot read the Node side's storage, so `asset` params carry their
+    # polygons in the request rather than a storage key.
+    assets: dict = {}
 
 
 def _finish(mesh, metrics, badge):
@@ -99,17 +118,18 @@ def generate(req: GenerateRequest):
             % (req.template_version, spec.get("version")),
         )
     root = repo_root()
-    try:
-        mesh = build(req.params, spec, root)
-        mesh, metrics, badge = pipeline.process(mesh, kind="preset")
-    except common.InvalidParams as exc:
-        raise HTTPException(422, str(exc))
-    except pipeline.PipelineError as exc:
-        raise HTTPException(422, str(exc))
-    try:
-        payload = _finish(mesh, metrics, badge)
-    except design_slicer.SliceError as exc:
-        return _slice_failed_response(exc)
+    with _PIPELINE_SLOT:
+        try:
+            mesh = build(req.params, spec, root, assets=req.assets)
+            mesh, metrics, badge = pipeline.process(mesh, kind="preset")
+        except common.InvalidParams as exc:
+            raise HTTPException(422, str(exc))
+        except pipeline.PipelineError as exc:
+            raise HTTPException(422, str(exc))
+        try:
+            payload = _finish(mesh, metrics, badge)
+        except design_slicer.SliceError as exc:
+            return _slice_failed_response(exc)
     log.info(
         "design/generate: %s v%d -> badge=%s tris=%d sliced=%s",
         req.template_id, spec["version"], payload["badge"],
@@ -118,35 +138,39 @@ def generate(req: GenerateRequest):
     return payload
 
 
+# Sync (not async) on purpose: the body is CPU-bound geometry work, so FastAPI
+# runs it in the threadpool instead of stalling the event loop for its duration.
 @router.post("/repair")
-async def repair(file: UploadFile = File(...)):
+def repair(file: UploadFile = File(...)):
     filename = file.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in ALLOWED_UPLOAD_EXTS:
         raise HTTPException(
             422, "unsupported file type: %r (expected .glb, .obj or .stl)" % ext
         )
-    data = await file.read()
+    data = file.file.read()
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "file too large (max 60 MB)")
     if not data:
         raise HTTPException(422, "uploaded file is empty")
 
-    try:
-        mesh = trimesh.load(io.BytesIO(data), file_type=ext, force="mesh")
-    except Exception as exc:
-        raise HTTPException(422, "could not load mesh: %s" % exc)
-    if mesh is None or not hasattr(mesh, "faces") or len(mesh.faces) == 0:
-        raise HTTPException(422, "mesh is empty or contains no triangles")
+    with _PIPELINE_SLOT:
+        try:
+            mesh = trimesh.load(io.BytesIO(data), file_type=ext, force="mesh")
+        except Exception as exc:
+            raise HTTPException(422, "could not load mesh: %s" % exc)
+        del data
+        if mesh is None or not hasattr(mesh, "faces") or len(mesh.faces) == 0:
+            raise HTTPException(422, "mesh is empty or contains no triangles")
 
-    try:
-        mesh, metrics, badge = pipeline.process(mesh, kind="ai")
-    except pipeline.PipelineError as exc:
-        raise HTTPException(422, str(exc))
-    try:
-        payload = _finish(mesh, metrics, badge)
-    except design_slicer.SliceError as exc:
-        return _slice_failed_response(exc)
+        try:
+            mesh, metrics, badge = pipeline.process(mesh, kind="ai")
+        except pipeline.PipelineError as exc:
+            raise HTTPException(422, str(exc))
+        try:
+            payload = _finish(mesh, metrics, badge)
+        except design_slicer.SliceError as exc:
+            return _slice_failed_response(exc)
     log.info(
         "design/repair: %s -> badge=%s tris=%d sliced=%s",
         filename, payload["badge"],

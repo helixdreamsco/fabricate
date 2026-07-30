@@ -7,6 +7,7 @@ import {
   QUALITIES,
   SERVICE_FEE_BASE_GBP,
   SERVICE_FEE_PCT,
+  quantityTierDiscountPct,
   type MaterialKey,
   type QualityKey,
 } from "./catalog";
@@ -34,6 +35,9 @@ export type Quote = {
   delivery: number;
   subtotal: number;
   discountApplied: number; // £ saved vs list price (before service fee)
+  /** Volume-break % actually applied (0 when none, or when a bigger
+   *  community discount won). Drives the "10+ −10%" badge. */
+  quantityTierPct: number;
   multiMaterialSurcharge: number; // £ added for purge / colour changes
   total: number;
 };
@@ -97,10 +101,17 @@ export function estimateQuote({
 
   const listSubtotal = (materialCost + machineCost) * MARGIN_MULTIPLIER;
 
+  // Volume break for multi-unit runs. It does NOT stack with a community
+  // discount — the creator gets whichever is larger, so the two schemes can
+  // be tuned independently without compounding toward a free print.
+  const tierPct = quantityTierDiscountPct(quantity);
+  const effectivePct = Math.max(discountPct, tierPct);
+  const quantityTierPct = tierPct > discountPct ? tierPct : 0;
+
   let subtotal = listSubtotal;
   if (freeMode) subtotal = 0;
-  else if (discountPct > 0)
-    subtotal = listSubtotal * (1 - Math.min(100, Math.max(0, discountPct)) / 100);
+  else if (effectivePct > 0)
+    subtotal = listSubtotal * (1 - Math.min(100, Math.max(0, effectivePct)) / 100);
 
   const discountApplied = listSubtotal - subtotal;
   // Service fee = £2 base + 10% of the printing subtotal. Waivers that
@@ -137,6 +148,7 @@ export function estimateQuote({
     delivery: deliveryFee,
     subtotal,
     discountApplied,
+    quantityTierPct,
     multiMaterialSurcharge,
     total,
   };

@@ -1,0 +1,80 @@
+{
+  "id": "coaster-set",
+  "version": 1,
+  "name": "Coaster Set",
+  "category": "merch",
+  "audience": "brands",
+  "description": "Branded coasters with a condensation recess. Your logo or an icon, in sets of 4, 6 or 12.",
+  "thumbnail": "/design-thumbs/coaster-set.svg",
+  "params": {
+    "logo": {
+      "kind": "asset",
+      "label": "Logo",
+      "accept": "svg",
+      "areaFraction": 0.55,
+      "required": false,
+      "default": ""
+    },
+    "icon": {
+      "kind": "icon",
+      "label": "Or pick an icon",
+      "default": "star"
+    },
+    "shape": {
+      "kind": "enum",
+      "label": "Shape",
+      "options": [
+        "circle",
+        "rounded-square"
+      ],
+      "default": "circle"
+    },
+    "mode": {
+      "kind": "enum",
+      "label": "Style",
+      "options": [
+        "emboss",
+        "deboss"
+      ],
+      "default": "deboss"
+    },
+    "sizeMm": {
+      "kind": "number",
+      "label": "Size",
+      "min": 90,
+      "max": 100,
+      "step": 5,
+      "default": 95,
+      "unit": "mm"
+    },
+    "thicknessMm": {
+      "kind": "number",
+      "label": "Thickness",
+      "min": 4,
+      "max": 5,
+      "step": 0.5,
+      "default": 4,
+      "unit": "mm"
+    }
+  },
+  "quantity": {
+    "min": 4,
+    "max": 12,
+    "default": 4,
+    "presets": [
+      4,
+      6,
+      12
+    ]
+  },
+  "constraints": {
+    "minTextHeightMm": 7,
+    "minStrokeMm": 1.2,
+    "reliefDepthMm": 1.2,
+    "maxBBoxMm": [
+      110,
+      110,
+      10
+    ]
+  }
+}

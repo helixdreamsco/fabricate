@@ -11,7 +11,10 @@
     "build": "next build",
     "start": "next start",
     "postinstall": "prisma generate && mkdir -p public && cp -f node_modules/occt-import-js/dist/occt-import-js.wasm public/occt-import-js.wasm",
-    "deploy:start": "prisma db push --skip-generate --accept-data-loss && next start -p ${PORT:-3000}"
+    "deploy:start": "prisma db push --skip-generate --accept-data-loss && next start -p ${PORT:-3000}",
+    "test": "npm run test:unit && npm run test:api",
+    "test:unit": "node --experimental-strip-types --disable-warning=ExperimentalWarning --import ./test/resolver.mjs --test \"test/*.test.ts\"",
+    "test:api": "python3 -m pytest api/tests -q"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

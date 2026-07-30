@@ -1,0 +1,61 @@
+{
+  "id": "qr-stand",
+  "version": 1,
+  "name": "QR Stand",
+  "category": "signage",
+  "audience": "brands",
+  "description": "A counter stand with your link as a scannable QR code. Every code is decode-tested before it ships.",
+  "thumbnail": "/design-thumbs/qr-stand.svg",
+  "params": {
+    "url": {
+      "kind": "text",
+      "label": "Link",
+      "minLength": 4,
+      "maxLength": 64,
+      "default": "https://example.com",
+      "pattern": "^[A-Za-z0-9:/?#\\[\\]@!$&'()*+,;=._~%-]+$"
+    },
+    "faceMm": {
+      "kind": "number",
+      "label": "Face size",
+      "min": 60,
+      "max": 100,
+      "step": 5,
+      "default": 80,
+      "unit": "mm"
+    },
+    "text": {
+      "kind": "text",
+      "label": "Caption",
+      "minLength": 0,
+      "maxLength": 18,
+      "default": "",
+      "pattern": "^[A-Za-z0-9 .,!?&'-]*$"
+    },
+    "font": {
+      "kind": "enum",
+      "label": "Font",
+      "options": [
+        "sans-bold",
+        "serif-bold",
+        "mono-bold"
+      ],
+      "default": "sans-bold"
+    }
+  },
+  "quantity": {
+    "min": 1,
+    "max": 10,
+    "default": 1
+  },
+  "constraints": {
+    "minTextHeightMm": 7,
+    "minStrokeMm": 1.6,
+    "reliefDepthMm": 1.2,
+    "maxBBoxMm": [
+      110,
+      110,
+      120
+    ]
+  }
+}

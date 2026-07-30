@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { ParamControls } from "./ParamControls";
+import { QuantityPicker } from "./QuantityPicker";
 import { DesignViewer } from "./DesignViewer";
 import { DesignJobStatus } from "./DesignJobStatus";
 import { useDesignJob } from "@/hooks/useDesignJob";
@@ -26,6 +27,11 @@ export function Customiser({
 }) {
   const [values, setValues] = React.useState<ParamValues>(
     () => initialParams ?? defaultParams(spec),
+  );
+  // Sibling to the params, never inside them: N units are one identical STL,
+  // so quantity must not change the geometry hash.
+  const [quantity, setQuantity] = React.useState<number>(
+    () => spec.quantity?.default ?? 1,
   );
   const [preview, setPreview] = React.useState<PreviewResult | null>(null);
   const [previewBroken, setPreviewBroken] = React.useState(false);
@@ -70,6 +76,7 @@ export function Customiser({
           templateId: spec.id,
           templateVersion: spec.version,
           params: values,
+          quantity,
         }),
       });
       const data = await res.json();
@@ -117,6 +124,15 @@ export function Customiser({
         </p>
 
         <ParamControls spec={spec} values={values} onChange={onChange} />
+
+        <QuantityPicker
+          spec={spec}
+          value={quantity}
+          onChange={(n) => {
+            setQuantity(n);
+            setJobId(null); // run size changed — previous quote is stale
+          }}
+        />
 
         <div className="mt-6 flex flex-col gap-3">
           {!jobId ? (

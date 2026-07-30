@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/Input";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import type { ParamSpec, ParamValues, TemplateSpec } from "@/lib/design/schema";
-import { ICON_IDS } from "@/lib/design/schema";
+import { ICON_IDS, logoAreaMm } from "@/lib/design/schema";
+import { AssetControl } from "./AssetControl";
 
 const FONT_LABELS: Record<string, string> = {
   "sans-bold": "Sans",
@@ -35,6 +36,11 @@ export function ParamControls({
           param={param}
           value={values[key]}
           onChange={(v) => onChange(key, v)}
+          // Logo printability depends on how big the logo actually prints,
+          // which depends on the part's current size.
+          logoAreaMm={
+            param.kind === "asset" ? logoAreaMm(spec, values, key) : undefined
+          }
         />
       ))}
     </div>
@@ -45,10 +51,12 @@ function Control({
   param,
   value,
   onChange,
+  logoAreaMm: areaMm,
 }: {
   param: ParamSpec;
   value: string | number;
   onChange: (v: string | number) => void;
+  logoAreaMm?: number;
 }) {
   switch (param.kind) {
     case "text": {
@@ -144,6 +152,16 @@ function Control({
             ))}
           </div>
         </div>
+      );
+
+    case "asset":
+      return (
+        <AssetControl
+          label={param.label}
+          value={String(value ?? "")}
+          targetMm={areaMm ?? 30}
+          onChange={onChange}
+        />
       );
   }
 }

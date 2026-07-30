@@ -3,6 +3,12 @@
 # Build with the REPOSITORY ROOT as context:
 #   gcloud builds submit --config api/cloudbuild.yaml  (or)
 #   docker build -f api/Dockerfile .
+#
+# TARGET IS linux/amd64. Cloud Build and Cloud Run are both x86_64, so the
+# normal path is fine, but zxing-cpp (QR decode validation) publishes
+# manylinux wheels for x86_64 only — on an arm64 dev machine pip falls back to
+# a source build and fails without a toolchain. Build with
+# `docker buildx build --platform linux/amd64 ...` on Apple Silicon.
 # The design endpoints read template specs and fonts from the repo root
 # (DESIGN_REPO_ROOT), so those directories are baked into the image.
 
@@ -20,9 +26,11 @@ COPY api/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api/app ./app
-# Assets resolved via DESIGN_REPO_ROOT: template specs + engraving fonts.
+# Assets resolved via DESIGN_REPO_ROOT: template specs, engraving fonts and the
+# badge icon SVGs. Miss any of these and the affected template 422s at runtime.
 COPY design ./repo/design
 COPY public/fonts ./repo/public/fonts
+COPY public/design-icons ./repo/public/design-icons
 
 ENV DESIGN_REPO_ROOT=/srv/repo \
     # matplotlib needs a writable config dir; the container runs read-only-ish

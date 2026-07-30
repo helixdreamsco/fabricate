@@ -109,11 +109,15 @@ fixture, and endpoint error mapping).
 ## Deployment note
 
 The FastAPI service now needs the geometry deps in `api/requirements.txt`
-(manifold3d, shapely, matplotlib, scikit-image, fast-simplification, rtree)
-and benefits from a PrusaSlicer binary on its host. The Node app needs
-nothing new beyond `manifold-3d` + `@anthropic-ai/sdk` (already in
-package.json) and the Prisma schema push (`DesignJob`,
-`DesignModerationLog`).
+(manifold3d, shapely, matplotlib, scikit-image, fast-simplification, rtree,
+plus qrcode + zxing-cpp for the QR stand) and benefits from a PrusaSlicer
+binary on its host. The Node app needs nothing new beyond `manifold-3d`,
+`@anthropic-ai/sdk`, `qrcode` and `svgpath` (all already in package.json)
+and the Prisma migrations (`DesignJob`, `DesignModerationLog`,
+`DesignJob.quantity`, `DesignAsset`).
+
+The API image must also copy `public/design-icons` — `coaster_set` resolves
+icons from `DESIGN_REPO_ROOT` and 422s without them.
 
 ## Adding a template
 
@@ -122,9 +126,157 @@ package.json) and the Prisma schema push (`DesignJob`,
    states are unreachable).
 2. Builder in `api/app/design/templates/<id_snake>.py` (register in
    `templates/__init__.py`) — mm units, Z-up, one watertight solid, fixed
-   segment counts (determinism), user text as data only.
+   segment counts (determinism), user text as data only. Signature is
+   `build(params, spec, repo_root, assets=None)`.
 3. Client preview case in `src/lib/design/preview/buildPreview.ts`
    (approximate is fine — cosmetic), light-theme thumbnail in
    `public/design-thumbs/`.
-4. Bump `version` in the spec when changing existing geometry — old jobs
+4. Set `audience` to `"brands"` or `"you"` — it picks the gallery section.
+   Defaults to `"you"`.
+5. Bump `version` in the spec when changing existing geometry — old jobs
    keep their recorded `templateVersion`.
+
+### Geometry gotcha: never let parts merely touch
+
+Every multi-part template here has, at some point, produced a mesh that
+looked right and wasn't. The cause is always the same: two solids meeting on
+an exactly coincident plane. The boolean resolves that into zero-volume
+sliver shells and non-manifold edges; `merge_vertices()` in the repair
+pipeline then welds those into holes, the mesh stops being watertight, and it
+falls through to the voxel remesh — which is lossy, triples the triangle
+count and fragments the result.
+
+Always overlap. Relief sinks a fraction of a mm into its face
+(`RELIEF_EMBED_MM`), the QR panel sinks into its plinth (`PANEL_SINK_MM`),
+and QR modules are grown ~2% so diagonally adjacent ones overlap instead of
+touching at a point. Prefer merging in 2D (shapely) before extruding over
+3D-unioning many small solids.
+
+## Parameter kinds
+
+`text`, `enum`, `number`, `icon`, `part`, and:
+
+### `asset` — user-uploaded SVG (brand logos)
+
+```jsonc
+"logo": {
+  "kind": "asset", "label": "Logo", "accept": "svg",
+  "areaFraction": 0.45,   // fraction of the part's largest dimension
+  "required": false, "default": ""
+}
+```
+
+The parameter **value is an asset id**, never the artwork. That keeps the
+canonical params hash a pure function of the design, so the geometry cache
+still works, and means the client never re-uploads at order time.
+
+Pipeline (`src/lib/design/svg/`, `src/lib/design/assets.ts`):
+
+```
+upload → sanitise → extract polygons → printability → moderate → store
+POST /api/design/assets                    GET /api/design/assets/<id>
+```
+
+- **Sanitise** (`svg/sanitise.ts`) is parse-and-**rebuild**, not strip: output
+  is constructed only from allowlisted elements/attributes, so a payload
+  cannot survive by hiding in syntax the sanitiser failed to anticipate.
+  DOCTYPE/ENTITY (XXE) and CDATA are refused outright rather than cleaned.
+  Only the sanitised form is ever stored or served.
+- **Extract** (`svg/geometry.ts`) runs **once, server-side**, and stores
+  polygon rings. Both the browser preview and the Python worker extrude
+  *those*, rather than each re-parsing the SVG with a different library —
+  that is what makes preview parity actually hold. Stroke-only artwork
+  (`fill="none"`) is auto-outlined and flagged.
+- **Printability** (`svg/printability.ts`) rasterises the artwork at real
+  print size and measures the thinnest feature via a distance transform.
+  Below 1.0 mm the UI offers scale-up or thicken.
+- **Moderation** reuses the fail-closed classifier with a logo-specific
+  prompt: blocks hate symbols, sexual content and *major* brand marks, and
+  leans hard toward allowing unfamiliar small-brand logos.
+
+> **The worker cannot read our storage.** `fabricate-api` is stateless with no
+> `DATA_DIR` and no database, so assets travel **inline** in the
+> `/design/generate` request body as an `assets` map keyed by asset id.
+> `resolveAssetsForWorker()` throws rather than degrading — a part rebuilt
+> without its logo passes every check and is still the wrong product.
+
+## Quantity and volume tiers
+
+Templates opt in with a top-level block:
+
+```jsonc
+"quantity": { "min": 4, "max": 12, "default": 4, "presets": [4, 6, 12] }
+```
+
+`presets` renders fixed set sizes instead of a stepper. Omit the whole block
+for single-item templates: quantity is 1 and the picker is hidden.
+
+**Quantity is deliberately not a parameter.** N units are one byte-identical
+STL, so folding it into `params` would change `paramsHash`, miss the geometry
+cache and re-slice the same solid. It rides as a sibling column on
+`DesignJob` and survives the `/configure` handoff via `savePendingHints`.
+
+Tiers live in config, not constants — `QUANTITY_TIERS` in `src/lib/catalog.ts`:
+
+```ts
+export const QUANTITY_TIERS = [
+  { minQty: 10, discountPct: 10, label: "10+ · −10%" },
+  { minQty: 25, discountPct: 20, label: "25+ · −20%" },
+] as const;
+```
+
+Highest qualifying tier wins. The break applies to the printing subtotal
+only — never the service fee or delivery — and does **not** stack with a
+community discount: the larger of the two applies, so the schemes can be
+tuned independently without compounding toward a free print.
+
+### Maker capacity (v1 limitation)
+
+Routing is a bid marketplace: makers browse `/market` and choose what to bid
+on. There is no capacity, throughput or assignment model anywhere in the
+schema. Rather than invent one, v1 caps quantity **per template** at what one
+maker can plausibly batch — 100 keyrings, 12 coasters, 10 QR stands — and
+relies on makers self-selecting. Multi-maker batching is designed but not
+built; see `PLAN.md`.
+
+## QR validation
+
+`api/app/design/qr.py`. A QR object that doesn't scan fails in front of a
+customer, so scannability is a hard gate, not a nicety.
+
+1. **Normalise** the URL — https only; bare domains are upgraded, other
+   schemes rejected.
+2. **Size** it: module pitch must be ≥ `MIN_MODULE_MM` (1.6 mm) at the chosen
+   face, with a 4-module quiet zone. Too dense raises `QrTooDense` naming the
+   smallest face that *would* work.
+3. **Decode** it: `assert_decodes()` rasterises the same module matrix that
+   drives the geometry and decodes it with `zxing-cpp`. Mismatch fails the
+   job. Decoding the source string would be circular — this checks the data
+   about to become raised boxes.
+
+Error correction is level M (~15% damage tolerance) without the module-count
+inflation of Q or H. Modules are **raised**, so they read by shadow — dark
+filament is recommended, and the UI says so.
+
+`zxing-cpp` over `pyzbar` deliberately: it ships manylinux wheels, whereas
+pyzbar needs a system `libzbar` in the image.
+
+> **Build the API image for linux/amd64.** zxing-cpp publishes wheels for
+> x86_64 (and macOS arm64) but not linux/aarch64. Cloud Build and Cloud Run
+> are both x86_64 so the deploy path is unaffected, but `docker build` on an
+> Apple Silicon machine will try to compile from source and fail — use
+> `docker buildx build --platform linux/amd64 -f api/Dockerfile .`.
+
+## Tests
+
+```bash
+npm test        # both suites
+npm run test:unit   # TypeScript, node:test + native type stripping
+npm run test:api    # pytest
+```
+
+The TS runner is Node's built-in `node:test` with a small resolver hook
+(`test/resolver.mjs`) that teaches it the `@/` alias and extensionless
+imports — no bundler, no new dependencies. Note it strips types without
+transforming, so TypeScript **parameter properties** (`constructor(readonly
+x: string)`) will not run; declare fields explicitly.

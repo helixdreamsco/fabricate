@@ -1,0 +1,6 @@
+<!-- Holes/counters: an "O" and an "A" style mark. The inner rings must be
+     subtracted from the outer ones, not filled in, under evenodd. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">
+  <path fill-rule="evenodd" d="M50 10 A40 40 0 1 1 49.9 10 Z M50 30 A20 20 0 1 0 49.9 30 Z" fill="#111"/>
+  <path fill-rule="evenodd" d="M110 90 L140 10 L170 90 Z M140 40 L128 70 L152 70 Z" fill="#111"/>
+</svg>

@@ -54,20 +54,58 @@ async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export class DesignServiceError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-    readonly friendly: string,
-  ) {
+  // Explicit fields rather than constructor parameter properties: the test
+  // runner strips types without transforming, and parameter properties need
+  // a real transform.
+  status: number;
+  friendly: string;
+
+  constructor(message: string, status: number, friendly: string) {
     super(message);
+    this.status = status;
+    this.friendly = friendly;
   }
 }
+
+/**
+ * Builder rejections that are written FOR the user and should reach them
+ * verbatim — they name the problem and what to do about it ("use a face of at
+ * least 70 mm, or shorten the URL"). Everything else collapses to the generic
+ * message, so internal validator text like `widthMm=99 out of range` never
+ * leaks into the UI.
+ *
+ * Codes come from `invalid_params: <code>: <message>` raised by the Python
+ * templates (api/app/design/qr.py, templates/logo_keyring.py).
+ */
+const USER_FACING_BUILDER_ERRORS = new Set([
+  "qr_too_dense",
+  "qr_undecodable",
+  "url_not_https",
+  "url_too_long",
+  "url_invalid",
+  "url_empty",
+  "cut_through_splits_tag",
+]);
 
 function friendly(status: number, body: string): string {
   if (status === 422 && body.includes("slice_failed")) {
     return "This model can't be printed reliably — try different settings.";
   }
-  if (status === 422) return "These settings produced an invalid model.";
+  if (status === 422) {
+    // FastAPI wraps HTTPException as {"detail": "..."}.
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body) as { detail?: unknown };
+      if (typeof parsed.detail === "string") detail = parsed.detail;
+    } catch {
+      /* not JSON — fall through with the raw body */
+    }
+    const match = detail.match(/^invalid_params:\s*([a-z_]+):\s*([\s\S]+)$/);
+    if (match && USER_FACING_BUILDER_ERRORS.has(match[1])) {
+      return match[2].trim();
+    }
+    return "These settings produced an invalid model.";
+  }
   return "Our print-check service had a problem — please try again.";
 }
 
@@ -94,10 +132,27 @@ async function parseArtifacts(res: Response): Promise<DesignArtifacts> {
   };
 }
 
+/**
+ * Polygon payload for an `asset` parameter, keyed by asset id.
+ *
+ * This service is stateless and has no access to DATA_DIR or the database,
+ * so uploaded artwork cannot be passed by key — it travels inline. Omitting
+ * it doesn't error; it silently builds the part with no logo, which is why
+ * the caller resolves assets eagerly.
+ */
+export type WorkerAssets = Record<
+  string,
+  {
+    shapes: Array<{ rings: number[][]; fillRule: "nonzero" | "evenodd" }>;
+    bounds: [number, number, number, number];
+  }
+>;
+
 export async function generateDesign(
   templateId: string,
   templateVersion: number,
   params: Record<string, string | number>,
+  assets: WorkerAssets = {},
 ): Promise<DesignArtifacts> {
   const res = await fetch(`${API_HOST}/design/generate`, {
     method: "POST",
@@ -106,6 +161,7 @@ export async function generateDesign(
       template_id: templateId,
       template_version: templateVersion,
       params,
+      assets,
     }),
     signal: AbortSignal.timeout(180_000),
   });
@@ -126,6 +182,9 @@ export async function repairMesh(
   });
   return parseArtifacts(res);
 }
+
+/** Internals exposed for unit tests only. */
+export const __testing = { friendly };
 
 export async function designServiceHealthy(): Promise<boolean> {
   try {

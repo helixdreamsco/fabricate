@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <foreignObject width="100" height="100">
+    <body xmlns="http://www.w3.org/1999/xhtml">
+      <script>alert('xss')</script>
+      <iframe src="https://evil.example"></iframe>
+    </body>
+  </foreignObject>
+  <path d="M10 10 H 90 V 90 H 10 Z" fill="#000"/>
+</svg>

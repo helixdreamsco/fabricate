@@ -16,3 +16,8 @@ scipy==1.15.0
 scikit-image==0.26.0
 fast-simplification==0.1.13
 rtree==1.4.1
+# QR stand: generation, and the decode round-trip that gates every job.
+# zxing-cpp over pyzbar deliberately — it ships manylinux wheels, whereas
+# pyzbar needs a system libzbar in the image.
+qrcode==8.0
+zxing-cpp==2.3.0

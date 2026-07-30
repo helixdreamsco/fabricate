@@ -225,6 +225,37 @@ export const MACHINE_TIME_MIN_GBP = 3;
 export const MARGIN_MULTIPLIER = 1.4;
 export const MACHINE_TIME_RATE_GBP_PER_HOUR = 2.4;
 
+/**
+ * Volume price breaks for multi-unit orders (branded merch runs).
+ *
+ * A batch of N is cheaper per unit than N separate jobs: one slice, one bed
+ * setup, one handover. The break is passed to the creator as a discount on
+ * the printing subtotal only — service fee and delivery are never discounted,
+ * matching how community `discountPct` already behaves.
+ *
+ * Highest qualifying tier wins. Keep ordered by minQty ascending.
+ */
+export const QUANTITY_TIERS = [
+  { minQty: 10, discountPct: 10, label: "10+ · −10%" },
+  { minQty: 25, discountPct: 20, label: "25+ · −20%" },
+] as const;
+
+/** Discount % earned by ordering `quantity` units (0 below the first tier). */
+export function quantityTierDiscountPct(quantity: number): number {
+  let pct = 0;
+  for (const tier of QUANTITY_TIERS) {
+    if (quantity >= tier.minQty) pct = tier.discountPct;
+  }
+  return pct;
+}
+
+/** The next unreached tier, for "add 3 more to save 10%" UI. Null at the top. */
+export function nextQuantityTier(
+  quantity: number,
+): (typeof QUANTITY_TIERS)[number] | null {
+  return QUANTITY_TIERS.find((t) => quantity < t.minQty) ?? null;
+}
+
 export const DELIVERY_OPTIONS = [
   {
     key: "pickup" as const,

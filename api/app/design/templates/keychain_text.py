@@ -5,7 +5,7 @@ import os
 from .. import common
 
 
-def build(params, spec, repo_root):
+def build(params, spec, repo_root, assets=None):
     p = common.validate_params(params, spec)
     cons = spec["constraints"]
     length = p["lengthMm"]

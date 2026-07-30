@@ -3,19 +3,24 @@ import * as React from "react";
 import { Camera, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardSection } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
 import { MonoLabel } from "@/components/ui/MonoLabel";
+import { cn } from "@/lib/utils";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { DesignViewer } from "./DesignViewer";
 import { DesignJobStatus } from "./DesignJobStatus";
 import { useDesignJob } from "@/hooks/useDesignJob";
 
+// Brand-flavoured prompts sit alongside the personal ones so the AI tab
+// reads as useful for a business, not just a hobbyist. The templates handle
+// these properly — these chips are for people who land here first.
 const EXAMPLE_PROMPTS = [
+  "our logo as a keyring",
+  "QR stand for our counter",
+  "branded coaster set",
   "a chunky smiling octopus planter",
   "low-poly fox figurine",
   "a gnome fishing on a mushroom",
-  "chunky rocket ship desk ornament",
 ];
 
 type ClarifyQuestion = { question: string; options: string[] };
@@ -54,6 +59,7 @@ export function AiPanel({
   const [message, setMessage] = React.useState<string | null>(null);
   const [remaining, setRemaining] = React.useState<number | null>(initialRemaining);
   const [submitting, setSubmitting] = React.useState(false);
+  const [composerFocus, setComposerFocus] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const { job, error } = useDesignJob(jobId);
 
@@ -255,35 +261,67 @@ export function AiPanel({
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <Input
-            type="text"
-            value={image ? "" : prompt}
-            disabled={Boolean(image) || !signedIn}
-            maxLength={400}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && canSubmit && submit()}
-            placeholder={
-              !signedIn
-                ? "Sign in to describe your creation…"
-                : image
-                  ? `Using photo: ${image.name}`
-                  : "Describe your creation…"
+    <div className="flex flex-col gap-5">
+      {/* Hero composer. The prompt is the headline act on this page, so it
+          gets the size and elevation to match — a full-width card with the
+          controls tucked inside it rather than an input in a toolbar row. */}
+      <div
+        className={cn(
+          "rounded-[20px] border bg-white p-2 transition-[border-color,box-shadow] duration-200",
+          composerFocus
+            ? "border-black/25 shadow-xl"
+            : "border-black/10 shadow-lg",
+        )}
+      >
+        <textarea
+          value={image ? "" : prompt}
+          disabled={Boolean(image) || !signedIn}
+          maxLength={400}
+          rows={2}
+          onChange={(e) => setPrompt(e.target.value)}
+          onFocus={() => setComposerFocus(true)}
+          onBlur={() => setComposerFocus(false)}
+          onKeyDown={(e) => {
+            // Enter submits; Shift+Enter is a newline, as in any composer.
+            if (e.key === "Enter" && !e.shiftKey && canSubmit) {
+              e.preventDefault();
+              void submit();
             }
-          />
-        </div>
-        <div className="flex items-center gap-2">
+          }}
+          placeholder={
+            !signedIn
+              ? "Sign in to describe your creation…"
+              : image
+                ? `Using photo: ${image.name}`
+                : "A chunky smiling octopus planter…"
+          }
+          className="block w-full resize-none border-0 bg-transparent px-4 pb-2 pt-4 text-lg font-light leading-[1.4] tracking-[-0.015em] text-black outline-none placeholder:text-black/30 disabled:opacity-60 md:px-5 md:pt-5 md:text-2xl"
+        />
+        <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2 md:pl-5">
+          <span className="inline-flex items-center gap-3.5">
+            <button
+              type="button"
+              onClick={() => (image ? setImage(null) : fileRef.current?.click())}
+              disabled={!signedIn}
+              className="inline-flex items-center gap-[7px] border-0 bg-transparent p-0 text-black/50 transition-colors hover:text-black disabled:opacity-50"
+            >
+              {image ? (
+                <X className="h-3.5 w-3.5" />
+              ) : (
+                <Camera className="h-3.5 w-3.5" />
+              )}
+              <MonoLabel size="sm" muted={false} className="text-inherit">
+                {image ? "Remove photo" : "Add a photo"}
+              </MonoLabel>
+            </button>
+            <MonoLabel size="xs">{prompt.length}/400</MonoLabel>
+          </span>
           <Button
-            variant="secondary"
-            startIcon={image ? <X className="h-3 w-3" /> : <Camera className="h-3 w-3" />}
-            onClick={() => (image ? setImage(null) : fileRef.current?.click())}
-            disabled={!signedIn}
+            size="lg"
+            withArrow
+            onClick={() => submit()}
+            disabled={!canSubmit}
           >
-            {image ? "Remove" : "Photo"}
-          </Button>
-          <Button withArrow onClick={() => submit()} disabled={!canSubmit}>
             {submitting ? "Checking…" : "Generate"}
           </Button>
         </div>
@@ -297,22 +335,30 @@ export function AiPanel({
       </div>
 
       {!jobId && !image && !refine ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <MonoLabel size="xs" className="mr-1">
+            Try
+          </MonoLabel>
           {EXAMPLE_PROMPTS.map((example) => (
             <button
               key={example}
               type="button"
               disabled={!signedIn}
               onClick={() => setPrompt(example)}
-              className="rounded-full border border-black/10 bg-white px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.14em] text-black/50 transition-colors hover:border-black/30 hover:text-black disabled:opacity-50"
+              className="rounded-full border border-black/10 bg-white px-3.5 py-[7px] font-mono text-[9px] uppercase tracking-[0.14em] text-black/55 transition-all hover:border-black/35 hover:text-black disabled:opacity-50"
             >
               {example}
             </button>
           ))}
+          {remaining !== null && signedIn ? (
+            <MonoLabel size="xs" className="ml-auto">
+              {remaining} free generation{remaining === 1 ? "" : "s"} left today
+            </MonoLabel>
+          ) : null}
         </div>
       ) : null}
 
-      {remaining !== null && signedIn ? (
+      {remaining !== null && signedIn && (jobId || image || refine) ? (
         <MonoLabel size="xs">
           {remaining} free generation{remaining === 1 ? "" : "s"} left today
         </MonoLabel>
