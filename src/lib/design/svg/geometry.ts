@@ -23,6 +23,16 @@ export type Ring = number[];
 export type LogoShape = {
   rings: Ring[];
   fillRule: "nonzero" | "evenodd";
+  /**
+   * What this shape is painted with, normalised — a colour, or a
+   * `paint-<id>` token for a gradient.
+   *
+   * Carried through so the mesh stage can tell "these two shapes are the
+   * same ink and should merge" from "this shape sits on top of a different
+   * ink and should read as relief". Without it a layered logo flattens to
+   * its own silhouette.
+   */
+  paint: string;
 };
 
 export type LogoGeometry = {
@@ -316,6 +326,28 @@ function isNone(v: string | undefined): boolean {
 }
 
 /**
+ * Canonical form of a paint value, so `#FFF`, `#ffffff` and `white` are
+ * recognised as the same ink and merge instead of fighting each other.
+ * Unset means black — SVG's initial fill.
+ */
+function normalisePaint(value: string | undefined): string {
+  const v = (value ?? "#000").trim().toLowerCase();
+  if (v === "" || v === "currentcolor") return "#000000";
+  const named: Record<string, string> = {
+    black: "#000000",
+    white: "#ffffff",
+    red: "#ff0000",
+    lime: "#00ff00",
+    blue: "#0000ff",
+  };
+  if (named[v]) return named[v];
+  // #abc -> #aabbcc
+  const short = v.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
+  return v;
+}
+
+/**
  * Extract polygon rings from sanitised SVG markup.
  *
  * `allowAutoOutline` controls the stroke-only path: when true, outline-only
@@ -359,6 +391,7 @@ export function extractGeometry(
                   (state.fillRule ?? "").toLowerCase() === "evenodd"
                     ? "evenodd"
                     : "nonzero",
+                paint: normalisePaint(state.fill),
               });
             }
           } else if (stroked) {
@@ -373,7 +406,13 @@ export function extractGeometry(
               for (const ring of rings) {
                 const outlined = outlineStroke(ring, width * scale);
                 if (outlined) {
-                  shapes.push({ rings: [outlined], fillRule: "nonzero" });
+                  shapes.push({
+                    rings: [outlined],
+                    fillRule: "nonzero",
+                    // An outlined stroke is its own ink — a groove drawn over
+                    // a plate is a different mark from the plate.
+                    paint: normalisePaint(state.stroke),
+                  });
                   autoOutlined = true;
                 }
               }

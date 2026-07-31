@@ -274,12 +274,28 @@ function tokenise(src: string): Token[] {
 // Allowlist filtering
 // ---------------------------------------------------------------------------
 
+/**
+ * Gradient and pattern fills, rewritten to an inert token.
+ *
+ * `fill="url(#brand-gradient)"` points into a <defs> subtree we drop, so the
+ * reference is dead either way. But throwing the attribute away loses the
+ * information that this shape is painted *differently from its neighbours* —
+ * and that difference is the entire design in a layered logo. Keeping a
+ * token preserves the identity for the geometry stage while removing the
+ * reference: `paint-brand-gradient` fetches nothing and executes nothing.
+ */
+function rewritePaintReference(value: string): string | null {
+  const match = value.trim().match(/^url\(\s*['"]?#([A-Za-z][\w.:-]*)['"]?\s*\)$/);
+  return match ? `paint-${match[1]}` : null;
+}
+
 /** Attribute values that reference anything outside the document. */
 function valueIsSafe(name: string, value: string): boolean {
   const v = value.trim().toLowerCase();
   if (!v) return true;
-  // url(#id) would point at a <defs> subtree we've dropped; url(http…) is an
-  // external fetch. Neither is needed for a printable logo.
+  // url(http…) is an external fetch. Same-document url(#id) is handled
+  // earlier by rewritePaintReference; anything still carrying url( here is
+  // either external or malformed.
   if (v.includes("url(")) return false;
   if (v.includes("javascript:") || v.includes("data:") || v.includes("&#")) return false;
   if (v.includes("<") || v.includes(">")) return false;
@@ -336,6 +352,13 @@ function buildTree(tokens: Token[]): SvgNode {
       if (rawName === "href" || rawName.endsWith(":href")) continue;
       if (rawName.startsWith("xlink:")) continue;
       if (!allowed.has(rawName)) continue;
+      if (rawName === "fill" || rawName === "stroke") {
+        const token = rewritePaintReference(rawValue);
+        if (token) {
+          attrs[rawName] = token;
+          continue;
+        }
+      }
       if (!valueIsSafe(rawName, rawValue)) continue;
       attrs[rawName] = rawValue;
     }

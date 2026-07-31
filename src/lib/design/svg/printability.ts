@@ -54,10 +54,28 @@ function makeMask(
   const width = cols + 2 * PAD;
   const height = rows + 2 * PAD;
   const mask = new Uint8Array(width * height);
+  // One ink's shapes accumulate by union here, then the whole layer is
+  // XORed into `mask` below — the raster twin of what asset_geometry does in
+  // 2D. Measuring the plain union instead would rasterise a solid disc for a
+  // record logo and cheerfully report its thinnest feature as 25 mm.
+  let layer = new Uint8Array(width * height);
+  let layerPaint: string | undefined;
+  let layerStarted = false;
 
-  // Per-shape so each shape's own fill rule is honoured; shapes accumulate
-  // by union, which is what overlapping marks in a logo mean.
+  const commitLayer = () => {
+    if (!layerStarted) return;
+    for (let i = 0; i < mask.length; i++) mask[i] ^= layer[i];
+    layer = new Uint8Array(width * height);
+  };
+
   for (const shape of geo.shapes) {
+    if (!layerStarted) {
+      layerPaint = shape.paint;
+      layerStarted = true;
+    } else if (shape.paint !== layerPaint) {
+      commitLayer();
+      layerPaint = shape.paint;
+    }
     for (let py = 0; py < rows; py++) {
       // Sample at cell centres.
       const y = minY + ((py + 0.5) / rows) * spanY;
@@ -89,12 +107,13 @@ function makeMask(
           shape.fillRule === "evenodd" ? c % 2 === 0 : winding !== 0;
         if (inside) {
           fillSpan(
-            mask, width, py, crossings[c].x, crossings[c + 1].x, minX, spanX, cols,
+            layer, width, py, crossings[c].x, crossings[c + 1].x, minX, spanX, cols,
           );
         }
       }
     }
   }
+  commitLayer();
   return { mask, width, height };
 }
 
@@ -257,6 +276,7 @@ export function thickenGeometry(geo: LogoGeometry, byUnits: number): LogoGeometr
 
   const shapes = geo.shapes.map((s) => ({
     fillRule: s.fillRule,
+    paint: s.paint,
     rings: s.rings.map(grow),
   }));
 

@@ -4,7 +4,7 @@ import { FontLoader, type Font } from "three/examples/jsm/loaders/FontLoader.js"
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { ParamValues, TemplateSpec } from "../schema";
-import { booleanMany } from "./csg";
+import { booleanMany, booleanLayers } from "./csg";
 
 /**
  * Cosmetic live preview: mirrors the server templates approximately.
@@ -71,11 +71,18 @@ function loadIconShapes(iconId: string): Promise<THREE.Shape[]> {
  * the same artwork and the preview could drift from what actually prints.
  */
 type AssetGeometry = {
-  shapes: Array<{ rings: number[][]; fillRule: "nonzero" | "evenodd" }>;
+  shapes: Array<{
+    rings: number[][];
+    fillRule: "nonzero" | "evenodd";
+    paint?: string;
+  }>;
   bounds: [number, number, number, number];
 };
 
-const assetCache = new Map<string, Promise<THREE.Shape[]>>();
+/** Shapes grouped by ink, in paint order — see booleanLayers in csg.ts. */
+type AssetLayers = THREE.Shape[][];
+
+const assetCache = new Map<string, Promise<AssetLayers>>();
 
 function ringToPoints(ring: number[]): THREE.Vector2[] {
   const pts: THREE.Vector2[] = [];
@@ -107,15 +114,28 @@ function pointInRing(p: THREE.Vector2, ring: THREE.Vector2[]): boolean {
   return inside;
 }
 
-function loadAssetShapes(assetId: string): Promise<THREE.Shape[]> {
+function loadAssetShapes(assetId: string): Promise<AssetLayers> {
   if (!assetCache.has(assetId)) {
     assetCache.set(
       assetId,
       fetch(`/api/design/assets/${assetId}?format=geometry`)
         .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`asset ${r.status}`))))
         .then((data: { geometry: AssetGeometry }) => {
+          const layers: AssetLayers = [];
+          let currentPaint: string | undefined;
           const out: THREE.Shape[] = [];
+          const flush = () => {
+            if (out.length) layers.push(out.splice(0, out.length));
+          };
           for (const shapeSpec of data.geometry.shapes) {
+            // Consecutive shapes with the same paint are one mark; a change
+            // of ink starts a new layer that reads as relief against it.
+            if (layers.length === 0 && out.length === 0) {
+              currentPaint = shapeSpec.paint;
+            } else if (shapeSpec.paint !== currentPaint) {
+              flush();
+              currentPaint = shapeSpec.paint;
+            }
             const rings = shapeSpec.rings
               .map(ringToPoints)
               .filter((r) => r.length >= 3);
@@ -137,15 +157,38 @@ function loadAssetShapes(assetId: string): Promise<THREE.Shape[]> {
             }
             out.push(shape);
           }
-          return out;
+          flush();
+          return layers;
         })
         .catch((e) => {
           console.warn("logo preview unavailable", e);
-          return [];
+          return [] as AssetLayers;
         }),
     );
   }
   return assetCache.get(assetId)!;
+}
+
+/**
+ * Extrude an asset's ink layers and resolve them the way the worker does, so
+ * a layered logo previews with its interior detail rather than as its own
+ * silhouette. Falls back to a plain union if Manifold is unavailable — a
+ * rough preview beats none.
+ */
+async function extrudeAssetLayers(
+  layers: AssetLayers,
+  depth: number,
+  targetMm: number,
+): Promise<THREE.BufferGeometry[]> {
+  if (!layers.length) return [];
+  const extrudedLayers = layers.map((shapes) =>
+    shapes.map((s) => extrude(s, depth)),
+  );
+  // Fit before the boolean so every layer scales together.
+  fitGroup(extrudedLayers.flat(), targetMm);
+  if (extrudedLayers.length === 1) return extrudedLayers[0];
+  const resolved = await booleanLayers(extrudedLayers);
+  return resolved ? [resolved] : extrudedLayers.flat();
 }
 
 /** Scale + centre a group of geometries so the group's largest side fits. */
@@ -345,17 +388,13 @@ export async function buildPreview(
       const parts: THREE.BufferGeometry[] = [];
       const assetId = String(p.logo ?? "");
       if (assetId) {
-        const shapes = await loadAssetShapes(assetId);
-        if (shapes.length) {
+        const layers = await loadAssetShapes(assetId);
+        if (layers.length) {
           const logoSpec = spec.params.logo;
           const areaFraction =
             logoSpec?.kind === "asset" ? logoSpec.areaFraction : 0.45;
           const target = Math.min(width * areaFraction, logoSpan);
-          const geoms = fitGroup(
-            shapes.map((s) => extrude(s, depth)),
-            target,
-          );
-          for (const g of geoms) {
+          for (const g of await extrudeAssetLayers(layers, depth, target)) {
             g.translate(0, (logoTop + logoBottom) / 2, zBase);
             parts.push(g);
           }
@@ -404,9 +443,9 @@ export async function buildPreview(
       const assetId = String(p.logo ?? "");
       let artGeoms: THREE.BufferGeometry[] = [];
       if (assetId) {
-        const shapes = await loadAssetShapes(assetId);
-        if (shapes.length) {
-          artGeoms = fitGroup(shapes.map((s) => extrude(s, artDepth)), artArea);
+        const layers = await loadAssetShapes(assetId);
+        if (layers.length) {
+          artGeoms = await extrudeAssetLayers(layers, artDepth, artArea);
         }
       }
       if (!artGeoms.length) {

@@ -165,6 +165,46 @@ describe("printability at print size", () => {
     );
   });
 
+  it("measures the layered result, not the flattened union", () => {
+    // A mark sitting on a plate: union would rasterise one solid square and
+    // report its thinnest feature as half the logo. What actually prints is
+    // a thin frame, and that is what has to be measured — otherwise a record
+    // logo whose grooves are 0.45 mm gets waved through as "25 mm thick".
+    const plate = {
+      rings: [[0, 0, 100, 0, 100, 100, 0, 100, 0, 0]],
+      fillRule: "nonzero" as const,
+      paint: "#111111",
+    };
+    const mark = {
+      rings: [[2, 2, 98, 2, 98, 98, 2, 98, 2, 2]],
+      fillRule: "nonzero" as const,
+      paint: "#ff0000",
+    };
+    const layered = {
+      shapes: [plate, mark],
+      bounds: [0, 0, 100, 100] as [number, number, number, number],
+      autoOutlined: false,
+    };
+    // The surviving solid is a 2-unit frame; at 100 mm that is ~2 mm.
+    const report = analysePrintability(layered, 100);
+    assert.ok(
+      report.minFeatureMm < 6,
+      `expected a thin frame, measured ${report.minFeatureMm}mm`,
+    );
+
+    // The same shapes as one ink merge, and then it genuinely is a solid
+    // plate — several times chunkier than the frame.
+    const merged = {
+      ...layered,
+      shapes: [plate, { ...mark, paint: "#111111" }],
+    };
+    const solid = analysePrintability(merged, 100).minFeatureMm;
+    assert.ok(
+      solid > report.minFeatureMm * 3,
+      `same-ink shapes should merge into a solid: frame ${report.minFeatureMm}mm vs merged ${solid}mm`,
+    );
+  });
+
   it("scales its verdict with the print size", () => {
     const geo = load("logo-simple");
     // The same artwork on a tiny keyring tag can fail where a coaster passes.

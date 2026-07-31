@@ -263,50 +263,78 @@ def icon_mesh(svg_path, target_mm, depth_mm):
 # Uploaded logo assets -> mesh
 # ---------------------------------------------------------------------------
 
+def _shape_geometry(shape):
+    """One shape's rings resolved into a shapely geometry, y-flipped to y-up."""
+    rings = shape.get("rings") or []
+    rule = shape.get("fillRule", "nonzero")
+    # SVG y grows downward; every consumer here works y-up.
+    flipped = [[(float(r[i]), -float(r[i + 1])) for i in range(0, len(r) - 1, 2)]
+               for r in rings]
+    if rule == "evenodd":
+        return _combine_even_odd([np.asarray(r) for r in flipped if len(r) >= 3])
+    # Nonzero: the outer ring is the largest; anything strictly inside it is a
+    # hole. Shapely has no winding-aware union, and this containment rule
+    # matches how logos are actually drawn.
+    polys = []
+    for ring in flipped:
+        if len(ring) < 3:
+            continue
+        poly = Polygon(ring)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        if not poly.is_empty and poly.area > 0:
+            polys.append(poly)
+    if not polys:
+        return None
+    polys.sort(key=lambda p: -p.area)
+    geom = polys[0]
+    for poly in polys[1:]:
+        geom = geom.difference(poly) if geom.contains(poly) else geom.union(poly)
+    return geom
+
+
 def asset_geometry(asset):
     """Shapely geometry for an inline logo asset, y-flipped to y-up.
 
-    The asset arrives as flat rings already extracted and fill-rule-tagged by
-    the Node side (see src/lib/design/svg/geometry.ts). Parsing the SVG again
-    here would risk the worker and the browser preview disagreeing about the
-    same logo, so this deliberately consumes polygons rather than markup.
+    The asset arrives as flat rings already extracted and tagged by the Node
+    side (see src/lib/design/svg/geometry.ts). Parsing the SVG again here
+    would risk the worker and the browser preview disagreeing about the same
+    logo, so this deliberately consumes polygons rather than markup.
 
-    Returns a geometry centred on the origin, or None when the asset is empty.
+    Layered artwork is resolved by INK, not by union. A logo drawn as stacked
+    shapes — a disc, a plate on top, grooves on top of that, a label, a
+    letterform — is nearly all interior detail, and unioning it returns the
+    outermost silhouette and nothing else. A vinyl-record mark came back as a
+    plain filled circle.
+
+    So: consecutive shapes sharing a paint are merged (same ink, one mark),
+    and each new ink is symmetric-differenced against what is already there,
+    which is what "painted on top of" means once colour is gone and only
+    height is left. A mark over a plate becomes a recess in it; two shapes of
+    one colour still merge as before.
     """
     if not isinstance(asset, dict):
         raise InvalidParams("invalid_params: malformed asset payload")
     shapes = asset.get("shapes") or []
+
     combined = None
+    group = None          # accumulated geometry for the current ink
+    group_paint = None
     for shape in shapes:
-        rings = shape.get("rings") or []
-        rule = shape.get("fillRule", "nonzero")
-        # SVG y grows downward; every consumer here works y-up.
-        flipped = [[(float(r[i]), -float(r[i + 1])) for i in range(0, len(r) - 1, 2)]
-                   for r in rings]
-        if rule == "evenodd":
-            geom = _combine_even_odd([np.asarray(r) for r in flipped if len(r) >= 3])
-        else:
-            # Nonzero: the outer ring is the largest; anything strictly inside
-            # it is a hole. Shapely has no winding-aware union, and this
-            # containment rule matches how logos are actually drawn.
-            polys = []
-            for ring in flipped:
-                if len(ring) < 3:
-                    continue
-                poly = Polygon(ring)
-                if not poly.is_valid:
-                    poly = poly.buffer(0)
-                if not poly.is_empty and poly.area > 0:
-                    polys.append(poly)
-            if not polys:
-                continue
-            polys.sort(key=lambda p: -p.area)
-            geom = polys[0]
-            for poly in polys[1:]:
-                geom = geom.difference(poly) if geom.contains(poly) else geom.union(poly)
+        geom = _shape_geometry(shape)
         if geom is None or geom.is_empty:
             continue
-        combined = geom if combined is None else combined.union(geom)
+        # Assets predating paint tagging have no paint; treat them as one ink
+        # so their behaviour (plain union) is unchanged.
+        paint = shape.get("paint")
+        if group is not None and paint == group_paint:
+            group = group.union(geom)
+            continue
+        if group is not None:
+            combined = group if combined is None else combined.symmetric_difference(group)
+        group, group_paint = geom, paint
+    if group is not None:
+        combined = group if combined is None else combined.symmetric_difference(group)
 
     if combined is None or combined.is_empty:
         return None

@@ -70,6 +70,59 @@ export async function booleanOp(
 }
 
 /**
+ * Fold a stack of ink layers together with symmetric difference — the same
+ * resolution the worker applies in 2D (see `asset_geometry` in
+ * api/app/design/common.py).
+ *
+ * Layered logo artwork is mostly interior detail. Unioning the layers returns
+ * the outermost silhouette and throws the rest away, so a vinyl-record mark
+ * previews as a plain disc and then prints as one. Each new ink laid over
+ * what is beneath it becomes relief instead.
+ *
+ * `groups[i]` is the geometries of one ink; within a group they merge.
+ */
+export async function booleanLayers(
+  groups: THREE.BufferGeometry[][],
+): Promise<THREE.BufferGeometry | null> {
+  const wasm = await loadManifold();
+  if (!wasm) return null;
+  const merge = (parts: THREE.BufferGeometry[]) => {
+    let acc = new wasm.Manifold(toManifoldMesh(wasm, parts[0]));
+    for (const part of parts.slice(1)) {
+      const m = new wasm.Manifold(toManifoldMesh(wasm, part));
+      const next = acc.add(m);
+      acc.delete();
+      m.delete();
+      acc = next;
+    }
+    return acc;
+  };
+  try {
+    const present = groups.filter((g) => g.length > 0);
+    if (!present.length) return null;
+    let acc = merge(present[0]);
+    for (const group of present.slice(1)) {
+      const layer = merge(group);
+      // XOR = (a ∪ b) − (a ∩ b). Manifold has no direct operator.
+      const union = acc.add(layer);
+      const overlap = acc.intersect(layer);
+      const next = union.subtract(overlap);
+      acc.delete();
+      layer.delete();
+      union.delete();
+      overlap.delete();
+      acc = next;
+    }
+    const out = toGeometry(acc.getMesh());
+    acc.delete();
+    return out;
+  } catch (e) {
+    console.warn("layered logo preview failed; falling back to union", e);
+    return null;
+  }
+}
+
+/**
  * Union `parts` together (they may overlap each other), then apply `op`
  * against `target`. Overlapping shells inside one BufferGeometry are invalid
  * manifold input, so parts must arrive as separate geometries.

@@ -146,6 +146,37 @@ describe("adversarial inputs the fixtures don't cover", () => {
     assert.ok(out.svg.includes("&quot;"), "the quote should be escaped, not emitted raw");
   });
 
+  it("keeps same-document gradient fills as an inert token", () => {
+    // The reference itself is dead (we drop <defs>), but WHICH paint a shape
+    // uses is what distinguishes layers in a stacked logo — throwing it away
+    // flattened such logos to their own silhouette. The token fetches
+    // nothing and executes nothing.
+    const out = sanitiseSvg(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0 H5 V5 H0 Z" fill="url(#brand-grad)"/></svg>`,
+    );
+    assertInert(out.svg);
+    assert.match(out.svg, /fill="paint-brand-grad"/);
+  });
+
+  it("still drops every EXTERNAL url() reference", () => {
+    for (const fill of [
+      "url(https://evil.example/g.svg#grad)",
+      "url(//evil.example/g.svg#x)",
+      "url(data:image/svg+xml;base64,AAA)",
+      "url('https://evil.example/x#g')",
+      "url(javascript:alert(1))",
+    ]) {
+      const out = sanitiseSvg(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0 H5 V5 H0 Z" fill="${fill}"/></svg>`,
+      );
+      assertInert(out.svg);
+      assert.ok(
+        !/fill="/.test(out.svg),
+        `external reference survived as a fill: ${fill}`,
+      );
+    }
+  });
+
   it("rejects a file that isn't an SVG at all", () => {
     assert.throws(
       () => sanitiseSvg("just some text"),

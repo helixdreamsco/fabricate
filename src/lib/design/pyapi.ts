@@ -143,7 +143,12 @@ async function parseArtifacts(res: Response): Promise<DesignArtifacts> {
 export type WorkerAssets = Record<
   string,
   {
-    shapes: Array<{ rings: number[][]; fillRule: "nonzero" | "evenodd" }>;
+    shapes: Array<{
+      rings: number[][];
+      fillRule: "nonzero" | "evenodd";
+      /** Paint identity — consecutive shapes sharing it are one mark. */
+      paint?: string;
+    }>;
     bounds: [number, number, number, number];
   }
 >;

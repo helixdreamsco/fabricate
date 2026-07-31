@@ -142,3 +142,41 @@ def test_mesh_is_deterministic():
     m2 = common.asset_mesh(a, target_mm=25.0, depth_mm=1.2)
     assert np.allclose(m1.vertices, m2.vertices)
     assert np.array_equal(m1.faces, m2.faces)
+
+
+def test_layered_artwork_keeps_its_interior_detail():
+    """A stacked logo must not collapse to its own silhouette.
+
+    Real case: a vinyl-record mark drawn as disc -> plate -> groove rings ->
+    label -> letterform. Unioning those returns a plain filled circle and
+    every bit of the design is lost inside the outermost shape.
+    """
+    disc = {"rings": [square(0, 0, 100, 100)], "fillRule": "nonzero", "paint": "#111111"}
+    label = {"rings": [square(30, 30, 70, 70)], "fillRule": "nonzero", "paint": "#ff0000"}
+    geom = common.asset_geometry(asset([disc, label]))
+    # 100^2 minus the 40^2 label = the label reads as a recess, not a fill.
+    assert abs(geom.area - (10000 - 1600)) < 1.0
+    assert len(geom.interiors) == 1, "the label should punch a hole, not vanish"
+
+
+def test_same_ink_shapes_still_merge():
+    """Two shapes of one colour are one mark and must union, not cancel."""
+    a = {"rings": [square(0, 0, 60, 60)], "fillRule": "nonzero", "paint": "#111111"}
+    b = {"rings": [square(40, 0, 100, 60)], "fillRule": "nonzero", "paint": "#111111"}
+    geom = common.asset_geometry(asset([a, b]))
+    # Union of two overlapping 60x60 squares offset by 40 = 100x60.
+    assert abs(geom.area - 6000) < 1.0
+    assert geom.geom_type == "Polygon"
+
+
+def test_untagged_assets_keep_the_old_union_behaviour():
+    """Assets stored before paint tagging have no `paint` key.
+
+    They must keep unioning, or every logo uploaded before this change would
+    silently render differently on a re-order.
+    """
+    a = {"rings": [square(0, 0, 100, 100)], "fillRule": "nonzero"}
+    b = {"rings": [square(30, 30, 70, 70)], "fillRule": "nonzero"}
+    geom = common.asset_geometry(asset([a, b]))
+    assert abs(geom.area - 10000) < 1.0
+    assert len(geom.interiors) == 0
