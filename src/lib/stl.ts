@@ -5,6 +5,7 @@ import {
   ThreeMFLoader,
   OBJLoader,
 } from "three-stdlib";
+import { flattenProductionExtension } from "./three-mf-production";
 
 /**
  * One body inside a mesh file. STL/OBJ files always produce a single part.
@@ -209,7 +210,11 @@ async function loadParts(
   }
 
   if (ext === ".3mf") {
-    const group = tmfLoader.parse(buffer);
+    // Slicer exports (Bambu, Orca, Prusa) keep their geometry in separate
+    // model parts referenced by the production extension, which
+    // ThreeMFLoader can't follow. Flatten those references first; ordinary
+    // 3MFs pass through untouched.
+    const group = tmfLoader.parse(flattenProductionExtension(buffer));
     const parts = partsFromGroup(group);
     if (parts.length === 0)
       throw new Error("3MF file contained no mesh geometry");
