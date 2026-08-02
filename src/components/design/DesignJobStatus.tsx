@@ -1,12 +1,11 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Card, CardSection } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { savePendingUpload, savePendingHints } from "@/lib/order-storage";
+import { DesignHandoffButton } from "./DesignHandoffButton";
 import type { DesignJobView } from "@/hooks/useDesignJob";
 
 const STATE_COPY: Record<string, string> = {
@@ -72,32 +71,6 @@ export function DesignJobStatus({
   error: string | null;
   fileName: string;
 }) {
-  const router = useRouter();
-  const [handingOff, setHandingOff] = React.useState(false);
-  const [handoffError, setHandoffError] = React.useState<string | null>(null);
-
-  const continueToQuote = async () => {
-    if (!job?.stlUrl) return;
-    setHandingOff(true);
-    setHandoffError(null);
-    try {
-      const res = await fetch(job.stlUrl);
-      if (!res.ok) throw new Error(`fetch STL ${res.status}`);
-      const blob = await res.blob();
-      const file = new File([blob], fileName, { type: "model/stl" });
-      await savePendingUpload(file);
-      // Carry the run size across the handoff so /configure doesn't silently
-      // reset a 25-unit merch order back to 1.
-      await savePendingHints({ quantity: job.quantity ?? 1 });
-      router.push("/configure");
-    } catch (e) {
-      setHandoffError(
-        e instanceof Error ? e.message : "Couldn't hand off — try again.",
-      );
-      setHandingOff(false);
-    }
-  };
-
   if (error) {
     return (
       <Card>
@@ -212,33 +185,35 @@ export function DesignJobStatus({
               </>
             ) : null}
           </div>
-          <Button
-            size="lg"
-            withArrow
-            onClick={continueToQuote}
-            disabled={handingOff}
-          >
-            {handingOff
-              ? "Preparing…"
-              : job.badge === "too_fragile"
-                ? "Print — scale up first"
-                : "Print with a maker"}
-          </Button>
+          {/* Two ways out, both real: order it, or just take the file. The
+              download used to be a small underlined link beneath the call to
+              action, which read as an afterthought. */}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {job.stlUrl ? (
+              <a href={job.stlUrl} download={fileName}>
+                <Button variant="secondary" size="lg">
+                  Download STL
+                </Button>
+              </a>
+            ) : null}
+            {job.stlUrl ? (
+              <DesignHandoffButton
+                stlUrl={job.stlUrl}
+                fileName={fileName}
+                quantity={job.quantity}
+                size="lg"
+                label={
+                  job.badge === "too_fragile"
+                    ? "Print — scale up first"
+                    : "Print with a maker"
+                }
+              />
+            ) : null}
+          </div>
         </div>
-        {handoffError ? (
-          <MonoLabel size="xs" muted={false} className="mt-2 block text-[#ef4444]">
-            {handoffError}
-          </MonoLabel>
-        ) : null}
-        {job.stlUrl ? (
-          <a
-            href={job.stlUrl}
-            download
-            className="mt-3 inline-block font-mono text-[10px] uppercase tracking-[0.18em] text-black/40 underline underline-offset-4 transition-colors hover:text-black"
-          >
-            Download STL
-          </a>
-        ) : null}
+        <MonoLabel size="xs" className="mt-3 block">
+          The STL is yours either way — download it and print it anywhere.
+        </MonoLabel>
       </CardSection>
     </Card>
   );

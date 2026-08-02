@@ -7,6 +7,8 @@ import type { TemplateSpec } from "@/lib/design/schema";
 import { getProvider, conceptImagesAvailable } from "@/lib/design/meshy";
 import { classifierAvailable } from "@/lib/design/moderation";
 import { generationsRemaining } from "@/lib/design/jobs";
+import { getDesignIdentity, ownerWhere } from "@/lib/design/identity";
+import { prisma } from "@/lib/prisma";
 import { AiPanel } from "@/components/design/AiPanel";
 import { MonoLabel } from "@/components/ui/MonoLabel";
 
@@ -23,6 +25,12 @@ export default async function DesignPage() {
   const templates = allTemplates();
   const session = await auth();
   const signedIn = Boolean(session?.user?.id);
+  // Only surface the library once there's something in it — an empty link
+  // on a first visit is noise.
+  const identity = await getDesignIdentity();
+  const designCount = await prisma.designJob.count({
+    where: { ...ownerWhere(identity), state: "ready", stlKey: { not: null } },
+  });
   const aiAvailable = getProvider().available() && classifierAvailable();
   const remaining =
     aiAvailable && session?.user?.id
@@ -56,6 +64,15 @@ export default async function DesignPage() {
           signedIn={signedIn}
           initialRemaining={remaining}
         />
+
+        {designCount > 0 ? (
+          <Link
+            href="/design/mine"
+            className="inline-flex items-center gap-2 self-start font-mono text-[10px] uppercase tracking-[0.18em] text-black/45 underline underline-offset-4 transition-colors hover:text-black"
+          >
+            Your designs ({designCount})
+          </Link>
+        ) : null}
       </section>
 
       <section className="border-t border-black/[0.08] pt-7">
