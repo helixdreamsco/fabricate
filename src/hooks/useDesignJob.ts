@@ -27,6 +27,8 @@ export interface DesignJobView {
     thinAreas: number;
     sliced: boolean;
     supportsNeeded: boolean;
+    /** Scale that would fix a fragile model, or null if none would. */
+    scaleToFix?: number | null;
   } | null;
   quote: {
     total: number;

@@ -89,6 +89,7 @@ def _finish(mesh, metrics, badge):
         "thinAreas": metrics["thinAreas"],
         "sliced": bool(estimate["sliced"]),
         "supportsNeeded": metrics["supportsNeeded"],
+        "scaleToFix": metrics.get("scaleToFix"),
     }
     return {
         "metrics": ordered,

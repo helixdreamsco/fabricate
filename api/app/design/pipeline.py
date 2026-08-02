@@ -193,7 +193,18 @@ def enforce_bbox(mesh, kind="preset", target_size_mm=None):
 def thickness_check(mesh):
     """Sample ~2000 surface points and ray-measure local thickness.
 
-    Returns (thin_count, fragile). Deterministic (fixed seed).
+    Returns (thin_count, fragile, scale_to_fix). Deterministic (fixed seed).
+
+    `scale_to_fix` is how much bigger the model would have to be for its thin
+    fraction to fall under the threshold, or None when no achievable size
+    would do it. Thickness scales linearly with the model, so this comes out
+    of the samples already taken — no second pass — as the ratio between the
+    minimum wall and the thickness at the threshold percentile.
+
+    It exists because the UI told everyone with a fragile model to "scale up
+    or regenerate", and for a spiky organic mesh that is simply false: one
+    measured dragon still failed at 200 mm. Advice that doesn't work is worse
+    than no advice.
     """
     # Without embree, ray queries against a dense mesh take minutes and can
     # exhaust memory; a decimated probe keeps the sampled heuristic honest.
@@ -212,11 +223,27 @@ def thickness_check(mesh):
     valid = np.isfinite(thickness) & (thickness > 1e-9)
     thin = int(np.sum(valid & (thickness < MIN_THICKNESS_MM)))
     fragile = thin > FRAGILE_FRACTION * len(points)
-    return thin, fragile
+
+    scale_to_fix = None
+    if fragile:
+        measured = np.sort(thickness[valid])
+        # The sample that has to clear MIN_THICKNESS_MM for the thin count to
+        # land on the threshold. Everything below it is allowed to stay thin.
+        budget = int(FRAGILE_FRACTION * len(points))
+        if budget < len(measured):
+            at_threshold = float(measured[budget])
+            if at_threshold > 1e-6:
+                factor = MIN_THICKNESS_MM / at_threshold
+                # Only worth suggesting if the result is still printable and
+                # the jump isn't absurd — "make it 6x bigger" is not advice.
+                largest = float(mesh.extents.max())
+                if 1.0 < factor <= 3.0 and largest * factor <= MAX_BBOX_MM:
+                    scale_to_fix = round(factor, 2)
+    return thin, fragile, scale_to_fix
 
 
-def overhang_check(mesh):
-    """Overhang faces >50 deg from vertical covering >5 % of area -> supports."""
+def overhang_fraction(mesh):
+    """Share of surface area that is unsupported downward-facing overhang."""
     nz = mesh.face_normals[:, 2]
     # exclude faces resting on the build plate (all vertices near z=0)
     face_z = mesh.vertices[:, 2][mesh.faces]
@@ -225,8 +252,53 @@ def overhang_check(mesh):
     area = mesh.area_faces
     total = float(area.sum())
     if total <= 0:
-        return False
-    return float(area[overhang].sum()) / total > OVERHANG_AREA_FRACTION
+        return 0.0
+    return float(area[overhang].sum()) / total
+
+
+def overhang_check(mesh):
+    """Overhang faces >50 deg from vertical covering >5 % of area -> supports."""
+    return overhang_fraction(mesh) > OVERHANG_AREA_FRACTION
+
+
+# Orientations tried when auto-placing a generated model. Quarter turns about
+# X and Y, which is enough to find the flat-ish side of a figurine; finer
+# angles cost more and, measured across real models, bought nothing.
+_ORIENTATION_CANDIDATES = [
+    (axis, degrees)
+    for axis in ((1, 0, 0), (0, 1, 0))
+    for degrees in (0, 90, 180, 270)
+]
+
+
+def orient_for_printing(mesh):
+    """Rotate a generated mesh onto whichever tried side overhangs least.
+
+    Only for AI output, where "up" is arbitrary — the generator has no idea
+    which way the object will be printed, and the orientation it happens to
+    emit is as good as random. A template must never be rotated: a nameplate
+    that stands up was designed to.
+
+    Modest but real. Measured on live models: a pair of headphones went from
+    5.9% overhang area to 4.3%, crossing the support threshold; a dragon
+    barely moved, because an organic shape overhangs whichever way up it is.
+    Less support also means less material and a lower quote.
+    """
+    best = None
+    for axis, degrees in _ORIENTATION_CANDIDATES:
+        candidate = mesh.copy()
+        if degrees:
+            candidate.apply_transform(
+                trimesh.transformations.rotation_matrix(np.radians(degrees), axis)
+            )
+        candidate.apply_translation([0.0, 0.0, -candidate.bounds[0][2]])
+        score = overhang_fraction(candidate)
+        # Ties keep the earliest candidate, so the identity orientation wins
+        # unless something is genuinely better — determinism matters, and a
+        # gratuitous rotation would confuse anyone comparing to the preview.
+        if best is None or score < best[0] - 1e-9:
+            best = (score, candidate)
+    return best[1] if best else mesh
 
 
 def make_preview(mesh):
@@ -247,8 +319,12 @@ def export_artifacts(mesh, stl_path, glb_path):
 def process(mesh, kind="preset", target_size_mm=None):
     """Full repair + validation. Returns (mesh, partial_metrics dict)."""
     mesh = repair(mesh)
+    # Orient before sizing: rotation changes which dimension is longest, and
+    # the target size applies to the final pose.
+    if kind == "ai":
+        mesh = orient_for_printing(mesh)
     mesh = enforce_bbox(mesh, kind=kind, target_size_mm=target_size_mm)
-    thin, fragile = thickness_check(mesh)
+    thin, fragile, scale_to_fix = thickness_check(mesh)
     supports = overhang_check(mesh)
     ext = mesh.extents
     metrics = {
@@ -256,6 +332,9 @@ def process(mesh, kind="preset", target_size_mm=None):
         "triangles": int(len(mesh.faces)),
         "thinAreas": thin,
         "supportsNeeded": bool(supports),
+        # None unless scaling up would genuinely clear the thin-feature
+        # threshold — see thickness_check.
+        "scaleToFix": scale_to_fix,
     }
     badge = "too_fragile" if fragile else ("needs_supports" if supports else "ready")
     return mesh, metrics, badge

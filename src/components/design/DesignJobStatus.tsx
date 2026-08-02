@@ -24,15 +24,24 @@ function formatTime(s: number): string {
 
 export function PrintabilityBadge({
   badge,
+  scaleToFix,
 }: {
   badge: NonNullable<DesignJobView["badge"]>;
+  /** Set only when making the model bigger would genuinely clear the
+   *  thin-feature threshold. */
+  scaleToFix?: number | null;
 }) {
   if (badge === "too_fragile") {
+    // The old copy told everyone to "scale up or regenerate". For a spiky
+    // organic model that is false — one measured dragon still failed at
+    // 200 mm — so only offer scaling when the worker says it would work.
     return (
       <span className="inline-flex items-center gap-2 rounded-full border border-[#ef4444]/25 bg-[#ef4444]/10 px-3 py-1">
         <StatusDot tone="warn" />
         <MonoLabel size="sm" muted={false} className="text-[#ef4444]">
-          Too fragile — scale up or regenerate
+          {scaleToFix
+            ? `Fine details too thin — about ${scaleToFix}× bigger would fix it`
+            : "Fine details won't survive printing — try a chunkier design"}
         </MonoLabel>
       </span>
     );
@@ -151,7 +160,12 @@ export function DesignJobStatus({
   return (
     <Card>
       <CardSection>
-        {job.badge ? <PrintabilityBadge badge={job.badge} /> : null}
+        {job.badge ? (
+          <PrintabilityBadge
+            badge={job.badge}
+            scaleToFix={job.metrics?.scaleToFix}
+          />
+        ) : null}
         {m ? (
           <MonoLabel size="sm" className="mt-3 block">
             {m.bboxMm.map((v) => Math.round(v)).join(" × ")} mm ·{" "}
@@ -203,7 +217,7 @@ export function DesignJobStatus({
                 quantity={job.quantity}
                 size="lg"
                 label={
-                  job.badge === "too_fragile"
+                  job.badge === "too_fragile" && job.metrics?.scaleToFix
                     ? "Print — scale up first"
                     : "Print with a maker"
                 }

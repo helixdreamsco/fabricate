@@ -11,6 +11,9 @@ export interface DesignMetrics {
   thinAreas: number;
   sliced: boolean;
   supportsNeeded: boolean;
+  /** Factor that would make a fragile model printable, or null when no
+   *  achievable size would — see thickness_check in api/app/design/pipeline.py. */
+  scaleToFix?: number | null;
 }
 
 export interface DesignArtifacts {

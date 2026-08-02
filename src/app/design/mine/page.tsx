@@ -103,6 +103,7 @@ export default async function MyDesignsPage() {
                     <div className="mt-3">
                       <PrintabilityBadge
                         badge={job.badge as "ready" | "needs_supports" | "too_fragile"}
+                        scaleToFix={metrics?.scaleToFix}
                       />
                     </div>
                   ) : null}
