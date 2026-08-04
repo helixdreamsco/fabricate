@@ -10,13 +10,70 @@ the printer. All slicing happens here.
 """
 from __future__ import annotations
 
+import hashlib
+import logging
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import threading
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
+
+log = logging.getLogger("fabricate.slicer")
+
+# A slice takes seconds and /configure re-quotes on every knob turn, so the
+# same mesh gets sent over and over. Key on the mesh bytes plus the settings
+# that actually change the G-code — quantity, delivery and colour don't, so
+# changing those never costs a slice.
+#
+# Process-local and bounded. Cloud Run runs a handful of instances behind a
+# load balancer, so this is a hit-rate optimisation rather than a guarantee;
+# a cross-instance cache would mean putting slice results in the database,
+# which isn't worth it while a miss just costs one slice.
+_CACHE_MAX_ENTRIES = 256
+_cache: OrderedDict[str, "SliceResult | None"] = OrderedDict()
+_cache_lock = threading.Lock()
+
+# PrusaSlicer on a big or awkward mesh can genuinely take a minute. The
+# creator sees the tier-1 estimate the whole time, so a long ceiling costs
+# them nothing and rescues slices that a short one would have thrown away.
+SLICE_TIMEOUT_S = 120
+
+
+def mesh_digest(mesh_bytes: bytes) -> str:
+    """Content hash of the uploaded mesh — cache key and log correlator."""
+    return hashlib.sha256(mesh_bytes).hexdigest()
+
+
+def _cache_key(digest: str, *parts: object) -> str:
+    return digest + "|" + "|".join(str(p) for p in parts)
+
+
+def _cache_get(key: str) -> tuple[bool, "SliceResult | None"]:
+    """(hit, value). Failures are cached too — a mesh PrusaSlicer chokes on
+    will choke again, and retrying it on every keystroke is how you turn one
+    bad upload into a pinned CPU."""
+    with _cache_lock:
+        if key not in _cache:
+            return False, None
+        _cache.move_to_end(key)
+        return True, _cache[key]
+
+
+def _cache_put(key: str, value: "SliceResult | None") -> None:
+    with _cache_lock:
+        _cache[key] = value
+        _cache.move_to_end(key)
+        while len(_cache) > _CACHE_MAX_ENTRIES:
+            _cache.popitem(last=False)
+
+
+def cache_stats() -> dict:
+    with _cache_lock:
+        return {"entries": len(_cache), "max": _CACHE_MAX_ENTRIES}
 
 
 CANDIDATE_BINS = [
@@ -103,11 +160,54 @@ def slice_mesh(
     nozzle_mm: float = 0.4,
     print_speed_mm_s: int = 120,
 ) -> SliceResult | None:
-    """Return SliceResult from PrusaSlicer CLI, or None if unavailable / failed."""
+    """Return SliceResult from PrusaSlicer CLI, or None if unavailable / failed.
+
+    Never raises: every failure path returns None so the caller can fall back
+    to the geometric estimate. A bad mesh must not block a quote.
+    """
     bin_path = find_slicer()
     if not bin_path:
         return None
 
+    digest = mesh_digest(mesh_bytes)
+    key = _cache_key(
+        digest,
+        filament_density_g_per_cm3,
+        infill_pct,
+        layer_height_mm,
+        nozzle_mm,
+        print_speed_mm_s,
+    )
+    hit, cached = _cache_get(key)
+    if hit:
+        log.info("slice: cache hit %s", digest[:12])
+        return cached
+
+    result = _run_slice(
+        bin_path,
+        mesh_bytes,
+        digest=digest,
+        filament_density_g_per_cm3=filament_density_g_per_cm3,
+        infill_pct=infill_pct,
+        layer_height_mm=layer_height_mm,
+        nozzle_mm=nozzle_mm,
+        print_speed_mm_s=print_speed_mm_s,
+    )
+    _cache_put(key, result)
+    return result
+
+
+def _run_slice(
+    bin_path: str,
+    mesh_bytes: bytes,
+    *,
+    digest: str,
+    filament_density_g_per_cm3: float,
+    infill_pct: int,
+    layer_height_mm: float,
+    nozzle_mm: float,
+    print_speed_mm_s: int,
+) -> SliceResult | None:
     with tempfile.TemporaryDirectory() as td:
         stl_path = Path(td) / "part.stl"
         stl_path.write_bytes(mesh_bytes)
@@ -137,18 +237,33 @@ def slice_mesh(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=45,
+                timeout=SLICE_TIMEOUT_S,
             )
         except subprocess.TimeoutExpired:
+            log.warning("slice: timeout after %ds — mesh %s", SLICE_TIMEOUT_S, digest)
+            return None
+        except OSError as exc:
+            log.warning("slice: could not run slicer — mesh %s: %s", digest, exc)
             return None
 
         if proc.returncode != 0 or not out_path.exists():
+            # Non-manifold geometry, self-intersections, a part larger than
+            # the bed. The creator keeps the tier-1 estimate; the hash is
+            # here so a recurring bad mesh is findable in the logs.
+            stderr = (proc.stderr or "").strip().splitlines()
+            log.warning(
+                "slice: failed rc=%s — mesh %s: %s",
+                proc.returncode,
+                digest,
+                stderr[-1] if stderr else "no stderr",
+            )
             return None
 
         gcode = out_path.read_text(errors="replace")
         parsed = parse_gcode_tail(gcode)
 
         if "weight_g" not in parsed or "time_minutes" not in parsed:
+            log.warning("slice: G-code had no weight/time totals — mesh %s", digest)
             return None
 
         return SliceResult(

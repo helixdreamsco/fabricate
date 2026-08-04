@@ -222,6 +222,16 @@ export function ConfigPanel() {
   // about the launch promo, free-mode waiver, or affiliate creator waiver
   // — so we apply all three client-side and adjust the total accordingly.
   const promoApplied = isPlatformFeePromoActive();
+
+  // "Engine verified" means a real slicer produced these numbers. The API
+  // reports engine "volume-estimate" when PrusaSlicer isn't on the box — a
+  // server-computed estimate is still an estimate, and the badge must not
+  // claim otherwise.
+  const engineVerified =
+    draft.quoteStatus === "verified" &&
+    Boolean(draft.serverQuote) &&
+    !/^(volume-estimate|step)$/.test(draft.serverQuote!.quote.engine);
+
   const quote =
     draft.quoteStatus === "verified" && draft.serverQuote
       ? (() => {
@@ -303,7 +313,7 @@ export function ConfigPanel() {
                 tone={
                   draft.quoteStatus === "verifying"
                     ? "warn"
-                    : draft.quoteStatus === "verified"
+                    : engineVerified
                       ? "ready"
                       : draft.quoteStatus === "error"
                         ? "offline"
@@ -313,12 +323,10 @@ export function ConfigPanel() {
               />
               <MonoLabel size="sm">
                 {draft.quoteStatus === "verifying"
-                  ? "Verifying…"
-                  : draft.quoteStatus === "verified"
-                    ? "Server-verified"
-                    : draft.quoteStatus === "error"
-                      ? "Client estimate only"
-                      : "Live quote"}
+                  ? "Slicing…"
+                  : engineVerified
+                    ? "Engine verified"
+                    : "Client estimate only"}
               </MonoLabel>
             </div>
           </div>
@@ -853,7 +861,16 @@ export function ConfigPanel() {
           <MonoLabel size="md" className="mb-4 block">
             Breakdown
           </MonoLabel>
-          <div className="flex flex-col gap-2 font-mono text-[13px] tabular-nums">
+          {/* Values settle rather than snap when the slicer's numbers
+              replace the estimate — a jump from 26g to 23g with no visual
+              cue reads as a glitch. Keyed on the engine string so the fade
+              fires on the estimate→engine swap and not on every knob turn;
+              deliberately not tied to "verifying", which would leave the
+              panel dimmed for the two minutes a hard slice can take. */}
+          <div
+            key={quote.source}
+            className="value-settle flex flex-col gap-2 font-mono text-[13px] tabular-nums"
+          >
             <Row
               label="Material"
               detail={`${quote.weightG.toFixed(1)} g · ${material.label}`}

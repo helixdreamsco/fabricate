@@ -55,6 +55,14 @@
   100% { opacity: 1; transform: translateY(0); }
 }
 
+/* Breakdown figures settling when the slicer's numbers replace the
+   estimate. Opacity only — the rows must not move, or a price change
+   reads as a layout glitch. */
+@keyframes value-settle {
+  0%   { opacity: 0.45; }
+  100% { opacity: 1; }
+}
+
 @keyframes spin-slow {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
@@ -113,6 +121,10 @@
 
 .slide-in {
   animation: slide-in 0.4s ease-out both;
+}
+
+.value-settle {
+  animation: value-settle 0.45s ease-out both;
 }
 
 .pulse-soft {
