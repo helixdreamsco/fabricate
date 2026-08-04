@@ -12,6 +12,11 @@ import {
   type QualityKey,
 } from "./catalog";
 import { isPlatformFeePromoActive } from "./promotions";
+import {
+  DEFAULT_INFILL_FRACTION,
+  estimateFilamentGrams,
+  materialCostGbp,
+} from "./filament";
 
 /** Industry-rough purge / waste-tower cost per extra colour change. */
 export const COLOR_CHANGE_SURCHARGE_GBP = 0.4;
@@ -43,8 +48,9 @@ export type Quote = {
 };
 
 /**
- * Stage-1 estimate: pure volume-based. Stage-2 replaces `weightG` and
- * `estMinutes` with values from the server-side slicer.
+ * Stage-1 estimate: shell + infill from the mesh's own geometry (see
+ * `./filament`). Stage-2 replaces `weightG` and `estMinutes` with values
+ * from the server-side slicer.
  *
  * Community discount semantics:
  *   - `freeMode` wins → subtotal = 0 (service fee still applies; delivery too)
@@ -53,6 +59,7 @@ export type Quote = {
  */
 export function estimateQuote({
   volumeCm3,
+  surfaceAreaCm2 = 0,
   material,
   quality,
   infillPct,
@@ -63,8 +70,13 @@ export function estimateQuote({
   colorCount = 1,
   deliveryFeeOverride,
   creatorReferralEligible = false,
+  weightGPerPartOverride,
+  ratePerGramGbpOverride,
 }: {
   volumeCm3: number;
+  /** Mesh triangle area. 0 falls back to a cube approximation — see
+   *  `approxSurfaceAreaCm2`. */
+  surfaceAreaCm2?: number;
   material: MaterialKey;
   quality: QualityKey;
   infillPct: number;
@@ -80,18 +92,38 @@ export function estimateQuote({
    *  the service fee is dropped to 0 (the maker-side cut still fires
    *  and gets redirected to the affiliate at capture time). */
   creatorReferralEligible?: boolean;
+  /** Known filament mass for ONE unit — from the slicer, or from a design
+   *  job's recorded metrics. Skips the geometric estimate entirely. */
+  weightGPerPartOverride?: number;
+  /** Maker's own filament rate (£/g) once makers set one. Falls back to
+   *  the platform default from the catalogue. */
+  ratePerGramGbpOverride?: number;
 }): Quote {
   const mat = MATERIALS.find((m) => m.key === material)!;
   const q = QUALITIES.find((qq) => qq.key === quality)!;
 
-  const infillFactor = 0.25 + (infillPct / 100) * 0.75;
-  const perPartWeightG = volumeCm3 * mat.densityGPerCm3 * infillFactor;
+  const infillFraction =
+    infillPct > 0 ? infillPct / 100 : DEFAULT_INFILL_FRACTION;
+
+  const perPartWeightG =
+    weightGPerPartOverride ??
+    estimateFilamentGrams({
+      volumeCm3,
+      surfaceAreaCm2,
+      infillFraction,
+      densityGPerCm3: mat.densityGPerCm3,
+    });
   const weightG = perPartWeightG * quantity;
 
-  const perPartMinutes = volumeCm3 * 1.6 * q.timeMultiplier * (0.6 + infillFactor * 0.4);
+  // Time is still the old volume heuristic — the slicer's own estimate
+  // replaces it at stage 2, which is the only way to get it honest.
+  const timeInfillFactor = 0.25 + infillFraction * 0.75;
+  const perPartMinutes =
+    volumeCm3 * 1.6 * q.timeMultiplier * (0.6 + timeInfillFactor * 0.4);
   const estMinutes = perPartMinutes * quantity;
 
-  const materialCost = weightG * mat.pricePerGramGbp;
+  const ratePerGram = ratePerGramGbpOverride ?? mat.pricePerGramGbp;
+  const materialCost = materialCostGbp(weightG, ratePerGram);
   const rawMachineCost = (estMinutes / 60) * MACHINE_TIME_RATE_GBP_PER_HOUR;
   const machineCost = Math.max(MACHINE_TIME_MIN_GBP, rawMachineCost);
   const deliveryFee =

@@ -498,15 +498,18 @@ export async function getJob(
 
 /** Indicative price using the marketplace's own pricing engine. The real
  *  quote happens on /configure after handoff — this uses the same
- *  estimateQuote so the numbers agree. Volume is reconstructed from the
- *  slicer's true filament mass so weight matches exactly.
+ *  estimateQuote so the numbers agree.
+ *
+ *  These jobs were sliced for real, so the filament mass is passed straight
+ *  through rather than estimated. Volume is still back-derived because the
+ *  machine-time heuristic wants one; it no longer has to carry the weight
+ *  too, which is what made the old reverse-infill-factor trick necessary.
  *
  *  `metrics` always describes ONE unit (we never slice N copies); quantity
  *  scales the result and earns any volume break. */
 export function indicativeQuote(metrics: DesignMetrics, quantity = 1): Quote {
   const pla = MATERIALS.find((m) => m.key === "PLA")!;
-  const infillFactor = 0.25 + (15 / 100) * 0.75;
-  const volumeCm3 = metrics.filamentG / (pla.densityGPerCm3 * infillFactor);
+  const volumeCm3 = metrics.filamentG / pla.densityGPerCm3;
   return estimateQuote({
     volumeCm3,
     material: "PLA",
@@ -514,6 +517,7 @@ export function indicativeQuote(metrics: DesignMetrics, quantity = 1): Quote {
     infillPct: 15,
     quantity,
     delivery: "pickup",
+    weightGPerPartOverride: metrics.filamentG,
   });
 }
 

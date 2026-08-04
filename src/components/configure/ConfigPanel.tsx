@@ -108,6 +108,14 @@ export function ConfigPanel() {
     draft.analysis?.volumeCm3 ??
     0;
 
+  // Same preference for area, which drives the shell term in the filament
+  // estimate. Trimesh's figure accounts for the convex-hull repair it does
+  // on broken meshes; the client's is raw triangle area.
+  const surfaceAreaCm2 =
+    draft.serverAnalysis?.surface_area_cm2 ||
+    draft.analysis?.surfaceAreaCm2 ||
+    0;
+
   // Distinct colours drive the AMS purge surcharge.
   const colorCount = React.useMemo(
     () => new Set(draft.partColors.map((c) => c.toLowerCase())).size || 1,
@@ -137,6 +145,7 @@ export function ConfigPanel() {
     if (!draft.analysis) return null;
     return estimateQuote({
       volumeCm3,
+      surfaceAreaCm2,
       material: draft.material,
       quality: draft.quality,
       infillPct: draft.infill,
@@ -150,6 +159,7 @@ export function ConfigPanel() {
     });
   }, [
     volumeCm3,
+    surfaceAreaCm2,
     draft.analysis,
     draft.material,
     draft.quality,

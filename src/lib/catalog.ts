@@ -1,5 +1,42 @@
 export type MaterialKey = "PLA" | "PETG" | "ABS" | "TPU";
 
+/**
+ * Filament densities (g/cm³). The single source of truth — `MATERIALS`
+ * below reads from here, as does the Python quote service via the request
+ * payload.
+ *
+ * ASA is listed but not orderable: makers profile for it and it shows up in
+ * printer capability filters, so the density is worth having in one place
+ * for when it graduates to a `MATERIALS` entry.
+ */
+export const MATERIAL_DENSITY_G_PER_CM3 = {
+  PLA: 1.24,
+  PETG: 1.27,
+  ABS: 1.04,
+  ASA: 1.07,
+  TPU: 1.21,
+} as const;
+
+/**
+ * Platform default filament rates (£/g).
+ *
+ * These are cost-of-goods rates — spool price plus handling and failed-print
+ * allowance — NOT a margin vehicle. Platform take lives in the subtotal
+ * margin and the service fee. The previous £0.085/g for PLA (~£85/kg, about
+ * 4× spool cost) was quietly carrying margin in the material line, which
+ * made the breakdown lie about what the plastic costs.
+ *
+ * Makers will set their own rates; `estimateFilamentGrams` and
+ * `materialCostGbp` take the rate as an argument so a maker rate drops in
+ * without touching the maths.
+ */
+export const MATERIAL_RATE_GBP_PER_GRAM = {
+  PLA: 0.045,
+  PETG: 0.058,
+  ABS: 0.064,
+  TPU: 0.095,
+} as const satisfies Record<MaterialKey, number>;
+
 export type Material = {
   key: MaterialKey;
   label: string;
@@ -15,8 +52,8 @@ export const MATERIALS: Material[] = [
     key: "PLA",
     label: "PLA",
     tagline: "Default. Rigid, biodegradable, great finish.",
-    densityGPerCm3: 1.24,
-    pricePerGramGbp: 0.085,
+    densityGPerCm3: MATERIAL_DENSITY_G_PER_CM3.PLA,
+    pricePerGramGbp: MATERIAL_RATE_GBP_PER_GRAM.PLA,
     badge: "Most popular",
     colors: [
       { name: "Fabricate purple", hex: "#7c3aed" },
@@ -32,8 +69,8 @@ export const MATERIALS: Material[] = [
     key: "PETG",
     label: "PETG",
     tagline: "Tough & watertight. Best for outdoor parts.",
-    densityGPerCm3: 1.27,
-    pricePerGramGbp: 0.11,
+    densityGPerCm3: MATERIAL_DENSITY_G_PER_CM3.PETG,
+    pricePerGramGbp: MATERIAL_RATE_GBP_PER_GRAM.PETG,
     colors: [
       { name: "Clear", hex: "#d9e2e8" },
       { name: "Black", hex: "#111111" },
@@ -45,8 +82,8 @@ export const MATERIALS: Material[] = [
     key: "ABS",
     label: "ABS",
     tagline: "Heat-resistant, automotive-grade.",
-    densityGPerCm3: 1.04,
-    pricePerGramGbp: 0.12,
+    densityGPerCm3: MATERIAL_DENSITY_G_PER_CM3.ABS,
+    pricePerGramGbp: MATERIAL_RATE_GBP_PER_GRAM.ABS,
     colors: [
       { name: "Jet", hex: "#0a0a0a" },
       { name: "Ivory", hex: "#f1eadb" },
@@ -57,8 +94,8 @@ export const MATERIALS: Material[] = [
     key: "TPU",
     label: "TPU",
     tagline: "Flexible 95A. Gaskets, grips, hinges.",
-    densityGPerCm3: 1.21,
-    pricePerGramGbp: 0.18,
+    densityGPerCm3: MATERIAL_DENSITY_G_PER_CM3.TPU,
+    pricePerGramGbp: MATERIAL_RATE_GBP_PER_GRAM.TPU,
     badge: "Specialist",
     colors: [
       { name: "Black", hex: "#0a0a0a" },

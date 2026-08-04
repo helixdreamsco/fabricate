@@ -95,6 +95,8 @@ export function CheckoutForm({
 
   const quote = estimateQuote({
     volumeCm3: draft.analysis.volumeCm3,
+    surfaceAreaCm2:
+      draft.serverAnalysis?.surface_area_cm2 || draft.analysis.surfaceAreaCm2,
     material: draft.material,
     quality: draft.quality,
     infillPct: draft.infill,

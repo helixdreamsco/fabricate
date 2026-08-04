@@ -187,6 +187,7 @@ async def quote_endpoint(
     if slice_result is not None:
         q = quote(
             volume_cm3=analysis.volume_cm3,
+            surface_area_cm2=analysis.surface_area_cm2,
             material=material,
             quality=quality,
             infill_pct=infill,
@@ -208,6 +209,7 @@ async def quote_endpoint(
     else:
         q = quote(
             volume_cm3=analysis.volume_cm3,
+            surface_area_cm2=analysis.surface_area_cm2,
             material=material,
             quality=quality,
             infill_pct=infill,

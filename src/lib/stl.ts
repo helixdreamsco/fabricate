@@ -17,6 +17,8 @@ export type MeshPart = {
   geometry: THREE.BufferGeometry;
   triangleCount: number;
   volumeCm3: number;
+  /** Total triangle area — drives the shell term in the filament estimate. */
+  surfaceAreaCm2: number;
   /** Hex colour from the source file's material, when present. */
   originalColorHex: string | null;
 };
@@ -26,6 +28,7 @@ export type MeshAnalysis = {
   triangleCount: number;
   dimsMm: { x: number; y: number; z: number };
   volumeCm3: number;
+  surfaceAreaCm2: number;
   fileName: string;
   fileSize: number;
   format: "stl" | "3mf" | "obj" | "step";
@@ -41,18 +44,39 @@ const _b = new THREE.Vector3();
 const _c = new THREE.Vector3();
 const _cross = new THREE.Vector3();
 
-function computeVolumeMm3(geometry: THREE.BufferGeometry): number {
+const _ab = new THREE.Vector3();
+const _ac = new THREE.Vector3();
+
+/**
+ * Signed-tetrahedron volume and total triangle area in one pass.
+ *
+ * Both come from the same three vertices, and these meshes run to millions
+ * of triangles — walking the buffer twice to get the area separately would
+ * double the cost of the one genuinely hot loop on the upload path.
+ */
+function computeMassProperties(geometry: THREE.BufferGeometry): {
+  volumeMm3: number;
+  areaMm2: number;
+} {
   const position = geometry.attributes.position as THREE.BufferAttribute;
-  if (!position) return 0;
+  if (!position) return { volumeMm3: 0, areaMm2: 0 };
   let v = 0;
+  let area = 0;
   for (let i = 0; i < position.count; i += 3) {
     _a.fromBufferAttribute(position, i);
     _b.fromBufferAttribute(position, i + 1);
     _c.fromBufferAttribute(position, i + 2);
+
     _cross.crossVectors(_b, _c);
     v += _a.dot(_cross) / 6;
+
+    // |AB × AC| / 2 — the cross product above is about the origin and can't
+    // be reused for this.
+    _ab.subVectors(_b, _a);
+    _ac.subVectors(_c, _a);
+    area += _ab.cross(_ac).length() / 2;
   }
-  return Math.abs(v);
+  return { volumeMm3: Math.abs(v), areaMm2: area };
 }
 
 function extractColor(material: unknown): string | null {
@@ -90,7 +114,7 @@ function bakeMeshToPart(
   piece.computeVertexNormals();
 
   const triangleCount = Math.floor(piece.attributes.position.count / 3);
-  const volumeMm3 = computeVolumeMm3(piece);
+  const { volumeMm3, areaMm2 } = computeMassProperties(piece);
 
   return {
     index,
@@ -98,6 +122,7 @@ function bakeMeshToPart(
     geometry: piece,
     triangleCount,
     volumeCm3: volumeMm3 / 1000,
+    surfaceAreaCm2: areaMm2 / 100,
     originalColorHex: extractColor(mesh.material),
   };
 }
@@ -157,7 +182,7 @@ async function tessellateStep(buffer: ArrayBuffer): Promise<MeshPart[]> {
     geom.computeBoundingSphere();
 
     const triangleCount = Math.floor(geom.attributes.position.count / 3);
-    const volumeMm3 = computeVolumeMm3(geom);
+    const { volumeMm3, areaMm2 } = computeMassProperties(geom);
 
     let originalColorHex: string | null = null;
     if (Array.isArray(m.color) && m.color.length >= 3) {
@@ -175,6 +200,7 @@ async function tessellateStep(buffer: ArrayBuffer): Promise<MeshPart[]> {
       geometry: geom,
       triangleCount,
       volumeCm3: volumeMm3 / 1000,
+      surfaceAreaCm2: areaMm2 / 100,
       originalColorHex,
     });
   }
@@ -194,6 +220,7 @@ async function loadParts(
     const triangleCount = Math.floor(
       (geom.attributes.position as THREE.BufferAttribute).count / 3,
     );
+    const { volumeMm3, areaMm2 } = computeMassProperties(geom);
     return {
       format: "stl",
       parts: [
@@ -202,7 +229,8 @@ async function loadParts(
           name: "Body",
           geometry: geom,
           triangleCount,
-          volumeCm3: computeVolumeMm3(geom) / 1000,
+          volumeCm3: volumeMm3 / 1000,
+          surfaceAreaCm2: areaMm2 / 100,
           originalColorHex: null,
         },
       ],
@@ -254,6 +282,7 @@ async function loadParts(
             geometry: placeholder,
             triangleCount: 0,
             volumeCm3: 0,
+            surfaceAreaCm2: 0,
             originalColorHex: null,
           },
         ],
@@ -280,11 +309,13 @@ export async function analyzeSTL(file: File): Promise<MeshAnalysis> {
 
   const overallBbox = new THREE.Box3();
   let totalVolumeCm3 = 0;
+  let totalAreaCm2 = 0;
   let totalTriangles = 0;
   for (const p of parts) {
     p.geometry.computeBoundingBox();
     if (p.geometry.boundingBox) overallBbox.union(p.geometry.boundingBox);
     totalVolumeCm3 += p.volumeCm3;
+    totalAreaCm2 += p.surfaceAreaCm2;
     totalTriangles += p.triangleCount;
   }
   if (!isFinite(overallBbox.min.x)) {
@@ -300,6 +331,7 @@ export async function analyzeSTL(file: File): Promise<MeshAnalysis> {
       z: overallBbox.max.z - overallBbox.min.z,
     },
     volumeCm3: totalVolumeCm3,
+    surfaceAreaCm2: totalAreaCm2,
     fileName: file.name,
     fileSize: file.size,
     format,
