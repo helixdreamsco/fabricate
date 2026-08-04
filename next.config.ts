@@ -1,8 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
-const API_HOST = process.env.API_HOST ?? "http://127.0.0.1:8000";
-
 // Production security headers. CSP is intentionally permissive on
 // 'unsafe-inline' for now because we render some inline-styled SVGs +
 // markdown blocks; tighten when we're closer to launch and have a
@@ -48,14 +46,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  async rewrites() {
-    return [
-      {
-        source: "/api/py/:path*",
-        destination: `${API_HOST}/:path*`,
-      },
-    ];
-  },
+  // No rewrite for /api/py/* — it lives in src/app/api/py/[...path]/route.ts.
+  // A rewrite forwards the browser's request as-is, and the API is a private
+  // Cloud Run service that needs an ID token, so every proxied call 403'd.
+  // The route handler mints the token and allowlists the endpoints a browser
+  // is allowed to reach.
   // For Cloud Run / Docker deploys: enable Next.js standalone output so
   // the build artefact is a self-contained server bundle. Vercel ignores
   // this and uses its own pipeline.
