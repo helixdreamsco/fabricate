@@ -60,7 +60,7 @@ export function Footer() {
         <FooterCol title="Fabricate" links={COMPANY} />
       </div>
       <div className="mt-14 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-t border-black/[0.06] pt-6">
-        <MonoLabel size="sm">© 2026 Fabricate Labs Ltd</MonoLabel>
+        <MonoLabel size="sm">© 2026 HELIXDREAMSCO LTD</MonoLabel>
         <MonoLabel size="sm">Est. 2026 · Independent</MonoLabel>
       </div>
     </footer>

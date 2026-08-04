@@ -11,7 +11,10 @@ const PARTNERS = [
 
 export function NetworkStrip() {
   return (
-    <section className="border-y border-black/[0.06] bg-white/60">
+    <section
+      id="network"
+      className="scroll-mt-16 border-y border-black/[0.06] bg-white/60"
+    >
       <div className="max-w-[1400px] mx-auto px-5 md:px-8 py-6 md:py-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <MonoLabel size="md">

@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Camera, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardSection } from "@/components/ui/Card";
@@ -44,14 +45,17 @@ export function AiPanel({
   conceptImages,
   signedIn,
   initialRemaining,
+  initialPrompt = "",
 }: {
   available: boolean;
   /** Meshy live → prompts get a concept-image preview step. */
   conceptImages: boolean;
   signedIn: boolean;
   initialRemaining: number | null;
+  /** Idea typed into the landing composer, carried through sign-up. */
+  initialPrompt?: string;
 }) {
-  const [prompt, setPrompt] = React.useState("");
+  const [prompt, setPrompt] = React.useState(initialPrompt);
   const [image, setImage] = React.useState<{ dataUri: string; name: string } | null>(null);
   const [seed, setSeed] = React.useState(0);
   const [jobId, setJobId] = React.useState<string | null>(null);
@@ -61,7 +65,17 @@ export function AiPanel({
   const [submitting, setSubmitting] = React.useState(false);
   const [composerFocus, setComposerFocus] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  const router = useRouter();
   const { job, error } = useDesignJob(jobId);
+
+  /** Signed-out visitors get to compose; the account is asked for at the
+      point they actually try to generate, with the prompt carried over. */
+  const goSignIn = () => {
+    const next = prompt.trim()
+      ? `/design?prompt=${encodeURIComponent(prompt.trim())}`
+      : "/design";
+    router.push(`/account?callbackUrl=${encodeURIComponent(next)}`);
+  };
 
   // Poll the concept image task while one is running.
   const conceptTaskId = refine?.phase === "concept" ? refine.taskId : null;
@@ -118,8 +132,8 @@ export function AiPanel({
     );
   }
 
-  const canSubmit =
-    !submitting && signedIn && (image !== null || prompt.trim().length >= 3);
+  const hasInput = image !== null || prompt.trim().length >= 3;
+  const canSubmit = !submitting && signedIn && hasInput;
 
   /** Create the 3D generation job (direct, photo, or approved-concept). */
   const createJob = async (body: Record<string, unknown>) => {
@@ -275,7 +289,7 @@ export function AiPanel({
       >
         <textarea
           value={image ? "" : prompt}
-          disabled={Boolean(image) || !signedIn}
+          disabled={Boolean(image)}
           maxLength={400}
           rows={2}
           onChange={(e) => setPrompt(e.target.value)}
@@ -283,17 +297,19 @@ export function AiPanel({
           onBlur={() => setComposerFocus(false)}
           onKeyDown={(e) => {
             // Enter submits; Shift+Enter is a newline, as in any composer.
-            if (e.key === "Enter" && !e.shiftKey && canSubmit) {
+            if (e.key !== "Enter" || e.shiftKey) return;
+            if (!signedIn) {
+              e.preventDefault();
+              goSignIn();
+            } else if (canSubmit) {
               e.preventDefault();
               void submit();
             }
           }}
           placeholder={
-            !signedIn
-              ? "Sign in to describe your creation…"
-              : image
-                ? `Using photo: ${image.name}`
-                : "A chunky smiling octopus planter…"
+            image
+              ? `Using photo: ${image.name}`
+              : "A chunky smiling octopus planter…"
           }
           className="block w-full resize-none border-0 bg-transparent px-4 pb-2 pt-4 text-lg font-light leading-[1.4] tracking-[-0.015em] text-black outline-none placeholder:text-black/30 disabled:opacity-60 md:px-5 md:pt-5 md:text-2xl"
         />
@@ -301,8 +317,11 @@ export function AiPanel({
           <span className="inline-flex items-center gap-3.5">
             <button
               type="button"
-              onClick={() => (image ? setImage(null) : fileRef.current?.click())}
-              disabled={!signedIn}
+              onClick={() => {
+                if (!signedIn) return goSignIn();
+                if (image) setImage(null);
+                else fileRef.current?.click();
+              }}
               className="inline-flex items-center gap-[7px] border-0 bg-transparent p-0 text-black/50 transition-colors hover:text-black disabled:opacity-50"
             >
               {image ? (
@@ -319,8 +338,10 @@ export function AiPanel({
           <Button
             size="lg"
             withArrow
-            onClick={() => submit()}
-            disabled={!canSubmit}
+            onClick={() => (signedIn ? void submit() : goSignIn())}
+            // Signed out, Generate stays live and routes to sign-in — a
+            // dead button gives no clue what's missing.
+            disabled={signedIn && !canSubmit}
           >
             {submitting ? "Checking…" : "Generate"}
           </Button>
@@ -343,9 +364,8 @@ export function AiPanel({
             <button
               key={example}
               type="button"
-              disabled={!signedIn}
               onClick={() => setPrompt(example)}
-              className="rounded-full border border-black/10 bg-white px-3.5 py-[7px] font-mono text-[9px] uppercase tracking-[0.14em] text-black/55 transition-all hover:border-black/35 hover:text-black disabled:opacity-50"
+              className="rounded-full border border-black/10 bg-white px-3.5 py-[7px] font-mono text-[9px] uppercase tracking-[0.14em] text-black/55 transition-all hover:border-black/35 hover:text-black"
             >
               {example}
             </button>

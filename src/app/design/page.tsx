@@ -21,8 +21,19 @@ export const metadata: Metadata = {
 // AI availability + quota depend on runtime env and session.
 export const dynamic = "force-dynamic";
 
-export default async function DesignPage() {
+export default async function DesignPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ prompt?: string | string[] }>;
+}) {
   const templates = allTemplates();
+  // ?prompt= is how the landing composer hands an idea over — including
+  // across the sign-up round-trip, where React state doesn't survive.
+  const rawPrompt = (await searchParams)?.prompt;
+  const initialPrompt = (typeof rawPrompt === "string" ? rawPrompt : "").slice(
+    0,
+    400,
+  );
   const session = await auth();
   const signedIn = Boolean(session?.user?.id);
   // Only surface the library once there's something in it — an empty link
@@ -63,6 +74,7 @@ export default async function DesignPage() {
           conceptImages={conceptImagesAvailable() && classifierAvailable()}
           signedIn={signedIn}
           initialRemaining={remaining}
+          initialPrompt={initialPrompt}
         />
 
         {designCount > 0 ? (

@@ -1,6 +1,8 @@
 import { LandingHero } from "@/components/landing/LandingHero";
+import { NetworkStrip } from "@/components/landing/NetworkStrip";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { Footer } from "@/components/landing/Footer";
+import { FREE_GENERATIONS_PER_DAY } from "@/lib/design/jobs";
 import { LoggedInHome } from "@/components/home/LoggedInHome";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { auth } from "@/auth";
@@ -164,10 +166,19 @@ export default async function Home() {
     return <LoggedInHome userFirstName={first} communities={communities} />;
   }
 
+  // The hero's "live" pill quotes a real figure rather than a decorative one.
+  // Below a handful of makers we'd rather say nothing than advertise a
+  // thin network, so the pill falls back to "London · live".
+  const makerCount = await prisma.makerProfile.count();
+
   return (
     <>
       <JsonLd data={HOMEPAGE_JSON_LD} />
-      <LandingHero />
+      <LandingHero
+        makerCount={makerCount >= 5 ? makerCount : null}
+        freeGenerations={FREE_GENERATIONS_PER_DAY}
+      />
+      <NetworkStrip />
       <HowItWorks />
       <Footer />
     </>
