@@ -11,6 +11,7 @@ import { StatusDot } from "@/components/ui/StatusDot";
 import { DesignViewer } from "./DesignViewer";
 import { DesignJobStatus } from "./DesignJobStatus";
 import { useDesignJob } from "@/hooks/useDesignJob";
+import { routeComposerSubmit } from "@/lib/design/compose-route";
 
 // Brand-flavoured prompts sit alongside the personal ones so the AI tab
 // reads as useful for a business, not just a hobbyist. The templates handle
@@ -33,7 +34,14 @@ type ClarifyQuestion = { question: string; options: string[] };
  */
 type Refine =
   | { phase: "questions"; questions: ClarifyQuestion[]; answers: (string | null)[] }
-  | { phase: "concept"; enriched: string; taskId: string; progress: number }
+  | {
+      phase: "concept";
+      enriched: string;
+      taskId: string;
+      /** Which endpoint made it — text-to-image or image-to-image. */
+      kind: "text" | "reference";
+      progress: number;
+    }
   | { phase: "approve"; enriched: string; imageUrl: string };
 
 /**
@@ -79,12 +87,15 @@ export function AiPanel({
 
   // Poll the concept image task while one is running.
   const conceptTaskId = refine?.phase === "concept" ? refine.taskId : null;
+  const conceptKind = refine?.phase === "concept" ? refine.kind : "text";
   React.useEffect(() => {
     if (!conceptTaskId) return;
     let cancelled = false;
     const tick = async () => {
       try {
-        const res = await fetch(`/api/design/ai/concept/${conceptTaskId}`);
+        const res = await fetch(
+          `/api/design/ai/concept/${conceptTaskId}?kind=${conceptKind}`,
+        );
         if (!res.ok) throw new Error(`poll ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
@@ -114,7 +125,7 @@ export function AiPanel({
       cancelled = true;
       clearInterval(timer);
     };
-  }, [conceptTaskId]);
+  }, [conceptTaskId, conceptKind]);
 
   if (!available) {
     return (
@@ -165,15 +176,23 @@ export function AiPanel({
     }
   };
 
-  /** Kick off a concept image for the (possibly clarified) prompt. */
-  const startConcept = async (enriched: string) => {
+  /**
+   * Kick off a concept image for the (possibly clarified) prompt, using the
+   * attached photo as a reference when there is one — that's the only way
+   * words and a picture both reach the result, since image-to-3D's own
+   * prompt field only guides texture and we don't texture.
+   */
+  const startConcept = async (enriched: string, reference = image?.dataUri) => {
     setSubmitting(true);
     setMessage(null);
     try {
       const res = await fetch("/api/design/ai/concept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: enriched }),
+        body: JSON.stringify({
+          prompt: enriched,
+          ...(reference ? { imageDataUri: reference } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -181,7 +200,13 @@ export function AiPanel({
         setMessage(data.message ?? "Couldn't create a concept image — try again.");
         return;
       }
-      setRefine({ phase: "concept", enriched, taskId: data.taskId, progress: 0 });
+      setRefine({
+        phase: "concept",
+        enriched,
+        taskId: data.taskId,
+        kind: data.kind === "reference" ? "reference" : "text",
+        progress: 0,
+      });
     } catch {
       setRefine(null);
       setMessage("Network error — try again.");
@@ -191,13 +216,30 @@ export function AiPanel({
   };
 
   const submit = async (submitSeed = seed) => {
-    // Photo uploads and the demo generator keep the direct path.
-    if (image) {
-      return createJob({ imageDataUri: image.dataUri, seed: submitSeed });
+    const route = routeComposerSubmit({
+      hasPhoto: image !== null,
+      prompt,
+      conceptImagesAvailable: conceptImages,
+    });
+
+    // A photo with words skips the clarifying questions on purpose — the
+    // picture has already answered most of what they'd ask.
+    if (route === "concept-from-photo") {
+      return startConcept(prompt.trim(), image!.dataUri);
     }
-    if (!conceptImages) {
+    if (route === "image-to-3d") {
+      return createJob({
+        imageDataUri: image!.dataUri,
+        // Carried for the audit trail even where it can't steer the mesh;
+        // the composer says as much when that's the case.
+        ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+        seed: submitSeed,
+      });
+    }
+    if (route === "text-to-3d") {
       return createJob({ prompt, seed: submitSeed });
     }
+    if (route === "nothing") return;
     // Refine flow: ask for clarifications first (empty = specific enough).
     setSubmitting(true);
     setMessage(null);
@@ -234,8 +276,9 @@ export function AiPanel({
     const next = seed + 1; // new seed → fresh generation (skips dedupe)
     setSeed(next);
     setJobId(null);
-    // Refine jobs regenerate from a fresh concept image of the same idea.
-    if (conceptImages && !image && prompt.trim()) {
+    // Refine jobs regenerate from a fresh concept image of the same idea —
+    // including the reference photo, when the idea had one.
+    if (conceptImages && prompt.trim()) {
       void startConcept(prompt.trim());
     } else {
       void submit(next);
@@ -287,9 +330,41 @@ export function AiPanel({
             : "border-black/10 shadow-lg",
         )}
       >
+        {/* The photo sits above the text as its own removable chip. It used
+            to take the textarea over — blanking it, disabling it, and
+            replacing the placeholder — so attaching a picture meant giving
+            up the ability to say anything about it. */}
+        {image ? (
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-3 md:px-5">
+            <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-black/10 bg-white py-1 pl-1 pr-3">
+              {/* Local object URL from the user's own file — no optimiser. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={image.dataUri}
+                alt={image.name}
+                className="h-7 w-7 rounded-full object-cover"
+              />
+              <span className="truncate text-[13px] font-light text-black">
+                {image.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setImage(null)}
+                aria-label="Remove photo"
+                className="ml-0.5 text-black/35 transition-colors hover:text-black"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+            <MonoLabel size="xs">
+              {conceptImages
+                ? "Describe what to change about it — or leave it blank"
+                : "Photo only — descriptions need the full generator"}
+            </MonoLabel>
+          </div>
+        ) : null}
         <textarea
-          value={image ? "" : prompt}
-          disabled={Boolean(image)}
+          value={prompt}
           maxLength={400}
           rows={2}
           onChange={(e) => setPrompt(e.target.value)}
@@ -308,10 +383,13 @@ export function AiPanel({
           }}
           placeholder={
             image
-              ? `Using photo: ${image.name}`
+              ? "Make it a keyring, flatten the base…"
               : "A chunky smiling octopus planter…"
           }
-          className="block w-full resize-none border-0 bg-transparent px-4 pb-2 pt-4 text-lg font-light leading-[1.4] tracking-[-0.015em] text-black outline-none placeholder:text-black/30 disabled:opacity-60 md:px-5 md:pt-5 md:text-2xl"
+          className={cn(
+            "block w-full resize-none border-0 bg-transparent px-4 pb-2 text-lg font-light leading-[1.4] tracking-[-0.015em] text-black outline-none placeholder:text-black/30 md:px-5 md:text-2xl",
+            image ? "pt-2 md:pt-2" : "pt-4 md:pt-5",
+          )}
         />
         <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2 md:pl-5">
           <span className="inline-flex items-center gap-3.5">
@@ -319,18 +397,15 @@ export function AiPanel({
               type="button"
               onClick={() => {
                 if (!signedIn) return goSignIn();
-                if (image) setImage(null);
-                else fileRef.current?.click();
+                // Always the picker — removing is the chip's ✕ now, so this
+                // stays a single-purpose control.
+                fileRef.current?.click();
               }}
               className="inline-flex items-center gap-[7px] border-0 bg-transparent p-0 text-black/50 transition-colors hover:text-black disabled:opacity-50"
             >
-              {image ? (
-                <X className="h-3.5 w-3.5" />
-              ) : (
-                <Camera className="h-3.5 w-3.5" />
-              )}
+              <Camera className="h-3.5 w-3.5" />
               <MonoLabel size="sm" muted={false} className="text-inherit">
-                {image ? "Remove photo" : "Add a photo"}
+                {image ? "Replace photo" : "Add a photo"}
               </MonoLabel>
             </button>
             <MonoLabel size="xs">{prompt.length}/400</MonoLabel>

@@ -28,11 +28,16 @@ const bodySchema = z
   .refine(
     (b) =>
       b.conceptImageUrl
-        ? Boolean(b.prompt) && !b.imageDataUri
-        : Boolean(b.prompt) !== Boolean(b.imageDataUri),
+        ? // An approved concept already merged whatever the user brought;
+          // the raw photo has no further role.
+          Boolean(b.prompt) && !b.imageDataUri
+        : // Otherwise anything the user actually supplied: words, a photo,
+          // or both. Requiring exactly one was why a description typed
+          // next to a photo had to be thrown away.
+          Boolean(b.prompt) || Boolean(b.imageDataUri),
     {
       message:
-        "provide prompt, imageDataUri, or prompt + conceptImageUrl",
+        "provide prompt and/or imageDataUri, or prompt + conceptImageUrl",
     },
   );
 

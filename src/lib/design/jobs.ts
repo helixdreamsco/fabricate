@@ -10,7 +10,11 @@ import { generateDesign, repairMesh, DesignServiceError, type DesignMetrics } fr
 import { resolveAssetsForWorker } from "./assets";
 import { getProvider, refineEnabled, GenerationError } from "./meshy";
 import { GENERATION_TIMEOUT_MS, shapePrompt, type TaskKind } from "./provider";
-import { moderatePrompt, moderateImage } from "./moderation";
+import {
+  moderatePrompt,
+  moderateImage,
+  type ModerationResult,
+} from "./moderation";
 import { ownerWhere, type DesignIdentity } from "./identity";
 
 /** Identical request within this window returns the existing job. */
@@ -224,10 +228,17 @@ export async function createAiJob(opts: {
   const imageRef = opts.imageDataUri ?? opts.conceptImageUrl;
   const taskKind: TaskKind = imageRef ? "image" : "text";
   const shaped = taskKind === "text" ? shapePrompt(opts.prompt!) : "";
+  // Image jobs key on the image AND any accompanying words. Hashing the
+  // image alone would make "same photo, different description" look like a
+  // repeat and hand back the previous model.
   const dedupeBasis =
     taskKind === "text"
       ? shaped
-      : createHash("sha256").update(imageRef!).digest("hex");
+      : createHash("sha256")
+          .update(imageRef!)
+          .update(" ")
+          .update(opts.prompt?.trim() ?? "")
+          .digest("hex");
   const hash = aiDedupeHash(opts.identity.userId, dedupeBasis, opts.seed);
 
   // Never call Meshy for a duplicate request within 24 h.
@@ -259,15 +270,18 @@ export async function createAiJob(opts: {
     },
   });
 
-  // Concept images were generated from an already-moderated prompt; the
-  // prompt is re-checked here (fail closed), the image itself came from us.
-  const moderation = opts.conceptImageUrl
-    ? await moderatePrompt(opts.identity, opts.prompt!)
-    : taskKind === "text"
-      ? await moderatePrompt(opts.identity, opts.prompt!)
-      : await moderateImage(opts.identity, opts.imageDataUri!);
-  if (!moderation.allowed) {
-    await setState(job.id, "blocked", { failReason: moderation.message });
+  // Screen every user-supplied input, not whichever one we looked at first.
+  // A photo can arrive with a description now, and neither may launder the
+  // other. Concept images are exempt — they came from our own generator off
+  // an already-moderated prompt — but that prompt is re-checked here (fail
+  // closed) since it can be edited client-side.
+  const checks: ModerationResult[] = [];
+  if (opts.prompt) checks.push(await moderatePrompt(opts.identity, opts.prompt));
+  if (opts.imageDataUri)
+    checks.push(await moderateImage(opts.identity, opts.imageDataUri));
+  const blockedBy = checks.find((m) => !m.allowed);
+  if (blockedBy) {
+    await setState(job.id, "blocked", { failReason: blockedBy.message });
     return { jobId: job.id, reused: false, blocked: true };
   }
 

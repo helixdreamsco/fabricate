@@ -9,7 +9,14 @@ import { localProvider } from "./localProvider";
  *   For FDM printing we therefore use the preview mesh directly and skip the
  *   paid refine stage unless MESHY_ENABLE_REFINE is set.
  * - Image-to-3D: POST /openapi/v1/image-to-3d (v1!), single stage, accepts
- *   base64 data URIs; `should_texture:false` skips texture generation.
+ *   base64 data URIs; `should_texture:false` skips texture generation. Its
+ *   `texture_prompt` guides TEXTURE ONLY and is inert for us (we never
+ *   texture) — text alongside a photo cannot steer geometry here.
+ * - Image-to-image: POST /openapi/v1/image-to-image (verified 2026-08-05).
+ *   Takes `prompt` plus `reference_image_urls` (1-5, URL or base64 data
+ *   URI) and returns the same task shape as text-to-image. This is the only
+ *   endpoint where a photo and words both influence the result, so it's how
+ *   "photo + description" becomes a concept image before 3D.
  * - Task objects: status PENDING|IN_PROGRESS|SUCCEEDED|FAILED|CANCELED,
  *   progress 0-100, model_urls{glb,...}, consumed_credits, task_error.
  * - Webhooks exist but have NO documented signature mechanism, so we treat
@@ -19,6 +26,7 @@ import { localProvider } from "./localProvider";
 const TEXT_BASE = "https://api.meshy.ai/openapi/v2/text-to-3d";
 const IMAGE_BASE = "https://api.meshy.ai/openapi/v1/image-to-3d";
 const T2I_BASE = "https://api.meshy.ai/openapi/v1/text-to-image";
+const I2I_BASE = "https://api.meshy.ai/openapi/v1/image-to-image";
 
 const MAX_RETRIES = 3;
 
@@ -197,6 +205,35 @@ export async function createConceptImage(prompt: string): Promise<string> {
   return data.result;
 }
 
+/**
+ * Concept image from a reference photo AND a description.
+ *
+ * Image-to-3D can't do this: its only text input is `texture_prompt`, which
+ * guides texture, and we never texture. So when someone brings a photo and
+ * words, both go here first — the words describe the edit ("as a keyring",
+ * "with a flat base"), the photo anchors the subject — and the approved
+ * result is what gets turned into geometry.
+ */
+export async function createConceptImageFromReference(
+  prompt: string,
+  referenceDataUri: string,
+): Promise<string> {
+  const data = (await meshyFetch(I2I_BASE, {
+    method: "POST",
+    body: JSON.stringify({
+      ai_model: "nano-banana",
+      prompt: prompt.slice(0, 600),
+      reference_image_urls: [referenceDataUri],
+      aspect_ratio: "1:1",
+    }),
+  })) as { result: string };
+  return data.result;
+}
+
+/** Which endpoint a concept task belongs to — they share a response shape
+ *  but not a URL, so polling has to know which one made it. */
+export type ConceptKind = "text" | "reference";
+
 export type ConceptImageState = {
   status: "pending" | "in_progress" | "succeeded" | "failed" | "canceled";
   progress: number;
@@ -204,8 +241,12 @@ export type ConceptImageState = {
   error?: string;
 };
 
-export async function getConceptImage(taskId: string): Promise<ConceptImageState> {
-  const data = (await meshyFetch(`${T2I_BASE}/${taskId}`)) as {
+export async function getConceptImage(
+  taskId: string,
+  kind: ConceptKind = "text",
+): Promise<ConceptImageState> {
+  const base = kind === "reference" ? I2I_BASE : T2I_BASE;
+  const data = (await meshyFetch(`${base}/${taskId}`)) as {
     status?: string;
     progress?: number;
     image_urls?: string[];
